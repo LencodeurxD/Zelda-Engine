@@ -1,0 +1,26 @@
+{
+	"required": true,
+	"package": "com.ocarinaengine.client.mixin",
+	"compatibilityLevel": "JAVA_21",
+	"client": [
+		"CameraMixin",
+		"CreateWorldScreenGameTabMixin",
+		"CreateWorldScreenMixin",
+		"EntityMixin",
+		"GuiMixin",
+		"HumanoidModelMixin",
+		"ItemInHandLayerMixin",
+		"KeyboardInputMixin",
+		"LivingEntityMixin",
+		"LivingEntityRendererMixin",
+		"MinecraftMixin",
+		"PlayerModelMixin",
+		"PlayerRendererMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	},
+	"overwrites": {
+		"requireAnnotations": true
+	}
+}

@@ -1,0 +1,14 @@
+{
+	"key.categories.ocarina_engine": "Ocarina Engine",
+	"key.ocarina_engine.quick_menu": "Quick item menu (R)",
+	"key.ocarina_engine.use_quick_item": "Use quick item (ZR)",
+	"key.ocarina_engine.target_lock": "Z-Target / Center Camera",
+	"ocarina_engine.create_world.gametype": "Game Type",
+	"ocarina_engine.gametype.zelda": "Zelda",
+	"ocarina_engine.gametype.minecraft": "Minecraft",
+	"ocarina_engine.create_world.gametype.info.zelda": "Full Ocarina Engine Zelda gameplay: third-person camera, Z-Targeting, sword combat, hearts, menus, and ledge climbing.",
+	"ocarina_engine.create_world.gametype.info.minecraft": "Classic vanilla Minecraft gameplay with Ocarina Engine Zelda mechanics disabled.",
+	"ocarina_engine.command.gametype.success.single": "Set game type to %2$s for %1$s",
+	"ocarina_engine.command.gametype.success.multiple": "Set game type to %2$s for %1$s players",
+	"ocarina_engine.command.gametype.changed_self": "Your game type has been set to %s"
+}

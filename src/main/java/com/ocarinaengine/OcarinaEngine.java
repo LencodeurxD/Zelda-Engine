@@ -1,0 +1,55 @@
+package com.ocarinaengine;
+
+import com.ocarinaengine.chest.ZeldaChestServer;
+import com.ocarinaengine.combat.ZeldaCombatServer;
+import com.ocarinaengine.command.GametypeCommand;
+import com.ocarinaengine.command.ZeldaChestCommands;
+import com.ocarinaengine.gametype.OcarinaGameTypeServer;
+import com.ocarinaengine.inventory.OcarinaInventoryServer;
+import com.ocarinaengine.network.ChestCutscenePayload;
+import com.ocarinaengine.network.FinishZeldaChestPayload;
+import com.ocarinaengine.network.InitWorldGameTypePayload;
+import com.ocarinaengine.network.OpenZeldaChestPayload;
+import com.ocarinaengine.network.SaveZeldaInventoryPayload;
+import com.ocarinaengine.network.SyncGameTypePayload;
+import com.ocarinaengine.network.SyncZeldaInventoryPayload;
+import com.ocarinaengine.network.ZeldaSwordAttackPayload;
+import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.minecraft.resources.ResourceLocation;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class OcarinaEngine implements ModInitializer {
+	public static final String MOD_ID = "ocarina_engine";
+	public static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
+
+	@Override
+	public void onInitialize() {
+		PayloadTypeRegistry.playC2S().register(OpenZeldaChestPayload.TYPE, OpenZeldaChestPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(FinishZeldaChestPayload.TYPE, FinishZeldaChestPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(ZeldaSwordAttackPayload.TYPE, ZeldaSwordAttackPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(InitWorldGameTypePayload.TYPE, InitWorldGameTypePayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(SaveZeldaInventoryPayload.TYPE, SaveZeldaInventoryPayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ChestCutscenePayload.TYPE, ChestCutscenePayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(SyncGameTypePayload.TYPE, SyncGameTypePayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(SyncZeldaInventoryPayload.TYPE, SyncZeldaInventoryPayload.CODEC);
+
+		ZeldaChestServer.register();
+		ZeldaCombatServer.register();
+		OcarinaGameTypeServer.register();
+		OcarinaInventoryServer.register();
+
+		CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+			ZeldaChestCommands.register(dispatcher);
+			GametypeCommand.register(dispatcher);
+		});
+
+		LOGGER.info("[Ocarina Engine] Core loaded (common side).");
+	}
+
+	public static ResourceLocation id(String path) {
+		return ResourceLocation.fromNamespaceAndPath(MOD_ID, path);
+	}
+}

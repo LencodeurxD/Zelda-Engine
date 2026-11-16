@@ -1,0 +1,34 @@
+{
+	"schemaVersion": 1,
+	"id": "ocarina_engine",
+	"version": "${version}",
+	"name": "Ocarina Engine",
+	"description": "A new movement and camera engine inspired by Zelda: Ocarina of Time.",
+	"authors": [
+		"You"
+	],
+	"license": "All-Rights-Reserved",
+	"icon": "assets/ocarina_engine/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			"com.ocarinaengine.OcarinaEngine"
+		],
+		"client": [
+			"com.ocarinaengine.client.OcarinaEngineClient"
+		]
+	},
+	"mixins": [
+		"ocarina_engine.mixins.json",
+		{
+			"config": "ocarina_engine.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.20.1",
+		"minecraft": "~1.21.1",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}
