@@ -1,6 +1,7 @@
 package com.ocarinaengine.client.items;
 
 import com.ocarinaengine.client.animation.ArticulatedPlayerModel;
+import com.ocarinaengine.client.animation.ZeldaAnimationEngine;
 import com.ocarinaengine.client.camera.EngineState;
 import com.ocarinaengine.client.combat.ZeldaCombatSystem;
 import com.ocarinaengine.client.combat.ZeldaTargetingSystem;
@@ -632,16 +633,16 @@ public final class ZeldaQuickItems {
 			float stride = 0.0f;
 			if (bombThrowP < 0.28f) {
 				float u = smoothstep(0.0f, 0.28f, bombThrowP);
-				armsX = Mth.lerp(u, -2.55f, -3.08f);
-				forearmsX = Mth.lerp(u, -0.52f, -0.78f);
+				armsX = Mth.lerp(u, -2.88f, -3.12f);
+				forearmsX = Mth.lerp(u, -0.24f, -0.56f);
 				chestX = Mth.lerp(u, -0.06f, -0.26f);
 				heaveW = 0.0f;
 				stride = u * 0.45f;
 			} else if (bombThrowP < 0.62f) {
 				float u = (bombThrowP - 0.28f) / 0.34f;
 				float snap = (float) Math.pow(u, 0.56);
-				armsX = Mth.lerp(snap, -3.08f, -0.58f);
-				forearmsX = Mth.lerp(snap, -0.78f, -0.06f);
+				armsX = Mth.lerp(snap, -3.12f, -0.58f);
+				forearmsX = Mth.lerp(snap, -0.56f, -0.06f);
 				chestX = Mth.lerp(snap, -0.26f, 0.44f);
 				heaveW = snap;
 				stride = Mth.lerp(snap, 0.45f, 1.0f);
@@ -658,15 +659,19 @@ public final class ZeldaQuickItems {
 			targetWholeLean = (chestX * 0.48f) * b;
 			model.body.xRot += chestX * b;
 			model.head.xRot = Mth.lerp(b, model.head.xRot, -chestX * 0.45f);
-			float handInward = 0.22f * (1.0f - heaveW);
+			float handInward = 0.10f * (1.0f - heaveW);
+			float shoulderLift = 2.2f * (1.0f - heaveW) * b;
+			float forearmCup = -0.46f * (1.0f - heaveW);
+			model.rightArm.y -= shoulderLift;
+			model.leftArm.y -= shoulderLift;
 			model.rightArm.xRot = Mth.lerp(b, model.rightArm.xRot, armsX);
 			model.rightArm.yRot = Mth.lerp(b, model.rightArm.yRot, handInward);
-			model.rightArm.zRot = Mth.lerp(b, model.rightArm.zRot, -0.16f + 0.10f * heaveW);
+			model.rightArm.zRot = Mth.lerp(b, model.rightArm.zRot, 0.06f * (1.0f - heaveW) - 0.06f * heaveW);
 			model.leftArm.xRot = Mth.lerp(b, model.leftArm.xRot, armsX);
 			model.leftArm.yRot = Mth.lerp(b, model.leftArm.yRot, -handInward);
-			model.leftArm.zRot = Mth.lerp(b, model.leftArm.zRot, 0.16f - 0.10f * heaveW);
-			setForearm(model, true, b, forearmsX, 0.0f, 0.0f);
-			setForearm(model, false, b, forearmsX, 0.0f, 0.0f);
+			model.leftArm.zRot = Mth.lerp(b, model.leftArm.zRot, -0.06f * (1.0f - heaveW) + 0.06f * heaveW);
+			setForearm(model, true, b, forearmsX, 0.0f, forearmCup);
+			setForearm(model, false, b, forearmsX, 0.0f, -forearmCup);
 			syncPoseParts(model);
 			updateWholeBody(targetWholeY, targetWholeLean, dt);
 			return;
@@ -681,22 +686,25 @@ public final class ZeldaQuickItems {
 			float pitchRad = Mth.clamp(EngineState.camPitch, -72.0f, 75.0f) * Mth.DEG_TO_RAD;
 			float recoilKick = recoilP > 0.0f ? Mth.sin(recoilP * Mth.PI) * 0.24f : 0.0f;
 
-			targetWholeY = -0.055f * b * aimW * (1.0f - moveW * 0.6f);
-			model.body.yRot = Mth.lerp(b, model.body.yRot, 0.56f * aimW);
-			model.body.xRot += pitchRad * 0.22f * b;
-			model.head.yRot = Mth.lerp(b, model.head.yRot, -0.52f * aimW);
-			model.head.xRot = Mth.lerp(b, model.head.xRot, pitchRad * 0.72f);
+			float walkStep = Mth.sin(ZeldaAnimationEngine.getGaitCycle() * Mth.TWO_PI * 2.0f) * moveW;
+			float walkSway = Mth.cos(ZeldaAnimationEngine.getGaitCycle() * Mth.TWO_PI) * moveW;
+			targetWholeY = -0.055f * b * aimW * (1.0f - smoothstep(0.0f, 0.15f, moveW));
+			model.body.yRot = Mth.lerp(b, model.body.yRot, 0.52f * aimW - walkSway * 0.07f);
+			model.body.xRot += (pitchRad * 0.22f + 0.035f * walkStep) * b;
+			model.body.zRot = Mth.lerp(b, model.body.zRot, walkSway * 0.035f);
+			model.head.yRot = Mth.lerp(b, model.head.yRot, -0.50f * aimW + walkSway * 0.03f);
+			model.head.xRot = Mth.lerp(b, model.head.xRot, pitchRad * 0.72f - 0.02f * walkStep);
 
-			// Right arm aims the forked wooden frame straight downrange
-			model.rightArm.xRot = Mth.lerp(b, model.rightArm.xRot, -1.52f + pitchRad * 0.85f - recoilKick * 0.35f);
-			model.rightArm.yRot = Mth.lerp(b, model.rightArm.yRot, -0.14f);
+			// Right arm aims the forked wooden frame straight downrange with subtle step shock absorption
+			model.rightArm.xRot = Mth.lerp(b, model.rightArm.xRot, -1.52f + pitchRad * 0.85f - recoilKick * 0.35f + walkStep * 0.025f);
+			model.rightArm.yRot = Mth.lerp(b, model.rightArm.yRot, -0.14f + walkSway * 0.04f);
 			model.rightArm.zRot = Mth.lerp(b, model.rightArm.zRot, 0.08f);
 			setForearm(model, true, b, -0.08f, 0.0f, 0.0f);
 
 			// Left arm draws the leather pouch back toward Link's cheek
 			float drawBackY = 0.68f + 0.34f * draw - recoilKick;
-			model.leftArm.xRot = Mth.lerp(b, model.leftArm.xRot, -1.36f + pitchRad * 0.75f);
-			model.leftArm.yRot = Mth.lerp(b, model.leftArm.yRot, drawBackY);
+			model.leftArm.xRot = Mth.lerp(b, model.leftArm.xRot, -1.36f + pitchRad * 0.75f + walkStep * 0.025f);
+			model.leftArm.yRot = Mth.lerp(b, model.leftArm.yRot, drawBackY + walkSway * 0.04f);
 			model.leftArm.zRot = Mth.lerp(b, model.leftArm.zRot, 0.14f);
 			setForearm(model, false, b, -0.68f - 0.68f * draw + recoilKick * 1.4f, -0.18f * draw, 0.0f);
 
@@ -721,21 +729,24 @@ public final class ZeldaQuickItems {
 			targetWholeY = -0.04f * b * lift;
 			targetWholeLean = -0.05f * b * lift;
 
-			float shoulderX = Mth.lerp(lift, -0.95f, -2.52f) + walkBob;
-			float shoulderY = Mth.lerp(lift, 0.38f, 0.28f);
-			float shoulderZ = Mth.lerp(lift, -0.26f, -0.24f);
-			float forearmX = Mth.lerp(lift, -0.82f, -0.50f);
+			float shoulderX = Mth.lerp(lift, -0.95f, -2.88f) + walkBob;
+			float shoulderY = Mth.lerp(lift, 0.34f, 0.10f);
+			float shoulderZ = Mth.lerp(lift, -0.26f, 0.06f);
+			float forearmX = Mth.lerp(lift, -0.82f, -0.24f);
+			float forearmZ = Mth.lerp(lift, 0.0f, -0.46f);
 
 			model.body.xRot += -0.07f * lift * b;
 			model.head.xRot = Mth.lerp(b, model.head.xRot, 0.08f * lift);
+			model.rightArm.y -= 2.2f * lift * b;
+			model.leftArm.y -= 2.2f * lift * b;
 			model.rightArm.xRot = Mth.lerp(b, model.rightArm.xRot, shoulderX);
 			model.rightArm.yRot = Mth.lerp(b, model.rightArm.yRot, shoulderY);
 			model.rightArm.zRot = Mth.lerp(b, model.rightArm.zRot, shoulderZ);
 			model.leftArm.xRot = Mth.lerp(b, model.leftArm.xRot, shoulderX);
 			model.leftArm.yRot = Mth.lerp(b, model.leftArm.yRot, -shoulderY);
 			model.leftArm.zRot = Mth.lerp(b, model.leftArm.zRot, -shoulderZ);
-			setForearm(model, true, b, forearmX, 0.0f, 0.0f);
-			setForearm(model, false, b, forearmX, 0.0f, 0.0f);
+			setForearm(model, true, b, forearmX, 0.0f, forearmZ);
+			setForearm(model, false, b, forearmX, 0.0f, -forearmZ);
 			syncPoseParts(model);
 			updateWholeBody(targetWholeY, targetWholeLean, dt);
 			return;

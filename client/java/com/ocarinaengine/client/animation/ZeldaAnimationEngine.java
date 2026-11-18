@@ -5,6 +5,7 @@ import com.ocarinaengine.client.chest.ZeldaChestCutscene;
 import com.ocarinaengine.client.combat.ZeldaCombatSystem;
 import com.ocarinaengine.client.combat.ZeldaTargetingSystem;
 import com.ocarinaengine.client.equipment.ZeldaEquipment;
+import com.ocarinaengine.client.items.ZeldaQuickItems;
 import com.ocarinaengine.client.movement.ZeldaLedgeSystem;
 import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.client.Minecraft;
@@ -1139,17 +1140,20 @@ public final class ZeldaAnimationEngine {
 			}
 		}
 
-		boolean targeting = ZeldaTargetingSystem.isFocusActive();
+		boolean aimingSlingshot = ZeldaQuickItems.isAimingSlingshot();
+		boolean targeting = ZeldaTargetingSystem.isFocusActive() || aimingSlingshot;
 
-		// Authentic Ocarina-style dual-zone stick curve (Walk -> Jog).
+		// Authentic Ocarina-style dual-zone stick curve (Walk -> Jog; steady archer walk while aiming Slingshot).
 		float desiredBps = 0.0f;
 		if (inputMagnitude > 0.03f) {
+			float midBps = aimingSlingshot ? 2.10f : 2.75f;
+			float maxBps = aimingSlingshot ? 2.55f : (targeting ? 3.85f : 4.55f);
 			if (inputMagnitude <= 0.45f) {
 				float t = (inputMagnitude - 0.03f) / 0.42f;
-				desiredBps = Mth.lerp(t, 1.55f, 2.75f);
+				desiredBps = Mth.lerp(t, 1.45f, midBps);
 			} else {
 				float t = smoothstep(0.45f, 1.0f, inputMagnitude);
-				desiredBps = Mth.lerp(t, 2.75f, targeting ? 3.85f : 4.55f);
+				desiredBps = Mth.lerp(t, midBps, maxBps);
 			}
 			double attrSpeed = player.getAttributeValue(Attributes.MOVEMENT_SPEED);
 			float attrScale = Mth.clamp((float) (attrSpeed / 0.10000000149011612D), 0.35f, 2.0f);
@@ -1199,7 +1203,9 @@ public final class ZeldaAnimationEngine {
 		float strideScale = Mth.clamp(speedNorm / 0.28f, 0.48f, 1.0f);
 		float basePeak = Mth.lerp(Math.abs(strafeRightRel), Mth.lerp(jog, 0.48f, 0.74f), 0.54f);
 		float effectiveLegAmp = Math.max(0.18f, basePeak * strideScale * Math.max(0.25f, blendEst));
-		float cycleGroundDist = 3.00f * Mth.sin(effectiveLegAmp);
+		float strafeSideBlend = Math.abs(strafeRightRel);
+		float fwdCycleDist = 3.00f * Mth.sin(effectiveLegAmp);
+		float cycleGroundDist = Mth.lerp(smoothstep(0.18f, 0.85f, strafeSideBlend), fwdCycleDist, 1.12f);
 
 		float pulse = Mth.lerp(jog, ROOT_PULSE_WALK.eval(rootCycle), ROOT_PULSE_JOG.eval(rootCycle));
 		float tickSpeedBps = rootSpeedBps * pulse;
@@ -1344,7 +1350,8 @@ public final class ZeldaAnimationEngine {
 			gaitFrontRad = legPeakRad * 1.06f;
 			gaitBackRad = legPeakRad * 0.92f;
 			gaitStanceFrac = Mth.lerp(jog, 0.60f, 0.44f);
-			float cycleGroundDist = GAIT_LEG_LEN * ((float) Math.sin(gaitFrontRad) + (float) Math.sin(gaitBackRad)) / gaitStanceFrac;
+			float fwdCycleDist = GAIT_LEG_LEN * ((float) Math.sin(gaitFrontRad) + (float) Math.sin(gaitBackRad)) / gaitStanceFrac;
+			float cycleGroundDist = Mth.lerp(smoothstep(0.18f, 0.85f, strafeSideBlend), fwdCycleDist, 1.12f);
 			if (ds > 1.0e-5f && canAnimate && onGround) {
 				gaitCycle = (gaitCycle + ds / Math.max(0.45f, cycleGroundDist)) % 1.0f;
 			} else if (moveBlend < 0.004f && onGround) {
@@ -1382,6 +1389,7 @@ public final class ZeldaAnimationEngine {
 
 			boolean targeting = ZeldaTargetingSystem.isTargeting();
 			boolean focusing = ZeldaTargetingSystem.isFocusActive();
+			boolean strafeLocomotion = focusing || ZeldaQuickItems.isAimingSlingshot();
 			boolean swordDrawn = ZeldaCombatSystem.isSwordDrawn();
 			boolean activeCombat = ZeldaCombatSystem.isActiveCombat();
 			swordGuardBlend = damp(swordGuardBlend, (targeting || swordDrawn) ? 1.0f : 0.0f, targeting ? 16.0f : 11.0f, dt);
@@ -1391,7 +1399,7 @@ public final class ZeldaAnimationEngine {
 			shieldCrouchBlend = damp(shieldCrouchBlend, crouchTurtle ? 1.0f : 0.0f, crouchTurtle ? 20.0f : 18.0f, dt);
 			combatPoseBlend = damp(combatPoseBlend, activeCombat ? 1.0f : 0.0f, activeCombat ? 28.0f : 16.0f, dt);
 
-			if (focusing && inputMagnitude > 0.03f) {
+			if (strafeLocomotion && inputMagnitude > 0.03f) {
 				float relRad = Mth.wrapDegrees(inputTargetYaw - player.getYRot()) * Mth.DEG_TO_RAD;
 				strafeForwardRel = damp(strafeForwardRel, Mth.cos(relRad), 18.0f, dt);
 				strafeRightRel = damp(strafeRightRel, Mth.sin(relRad), 18.0f, dt);
@@ -1400,7 +1408,7 @@ public final class ZeldaAnimationEngine {
 				strafeRightRel = damp(strafeRightRel, 0.0f, 16.0f, dt);
 			}
 
-			if (moveBlend < 0.96f && !airborneActive && !focusing && !activeCombat && !guarding) {
+			if (moveBlend < 0.96f && !airborneActive && !strafeLocomotion && !activeCombat && !guarding) {
 				idleClock += dt;
 				if (now - lastContextSenseNanos > 65_000_000L || !idleInitialized) {
 					lastContextSenseNanos = now;
@@ -1412,7 +1420,7 @@ public final class ZeldaAnimationEngine {
 				}
 				advanceIdleActionTimers(dt);
 			}
-			if (moveBlend > 0.12f || airborneActive || focusing || activeCombat || guarding) {
+			if (moveBlend > 0.12f || airborneActive || strafeLocomotion || activeCombat || guarding) {
 				idleClock = 0.0f;
 				resetFidgetTimers();
 			}
@@ -1444,7 +1452,7 @@ public final class ZeldaAnimationEngine {
 			locoSpring.snap(locoPose);
 			locoSpringInitialized = true;
 		} else if (!isPaused) {
-			locoSpring.step(locoPose, 26.0f, 24.0f, 30.0f, 38.0f, 34.0f, dt);
+			locoSpring.step(locoPose, 28.0f, 26.0f, 32.0f, 48.0f, 42.0f, dt);
 		}
 		locoSpring.unpack(locoSolved);
 
@@ -1524,8 +1532,22 @@ public final class ZeldaAnimationEngine {
 		}
 	}
 
+	/** Current stick tilt in [0, 1] (read by secondary-motion layers). */
+	public static float getInputMagnitude() {
+		return inputMagnitude;
+	}
+
+	/** How strongly the engine currently drives the body pose in [0, 1]. */
+	public static float getEngineWeight() {
+		return engineWeight;
+	}
+
 	public static float getWholeLeanForwardRad() {
 		return idleInitialized ? finalPose.wholeLeanX * engineWeight : 0.0f;
+	}
+
+	public static float getGaitCycle() {
+		return gaitCycle;
 	}
 
 	public static float getWholeBankRightRad() {
@@ -1714,8 +1736,13 @@ public final class ZeldaAnimationEngine {
 
 		float sideMag = Math.abs(strafeRightRel);
 		float backpedalFactor = Mth.clamp(strafeForwardRel, -1.0f, 1.0f);
-		float strideDir = Mth.lerp(smoothstep(-0.22f, 0.22f, backpedalFactor), -1.0f, 1.0f);
-		float frontScale = 1.0f - 0.74f * sideMag;
+		float backBlend = smoothstep(-0.20f, -0.75f, backpedalFactor);
+		float strideDir = Mth.lerp(backBlend, 1.0f, -1.0f);
+		float sideW = smoothstep(0.15f, 0.85f, sideMag);
+		float fwdLegTurn = strafeRightRel * 0.82f * sideW;
+		float backLegTurn = -strafeRightRel * 0.52f * sideW;
+		float legTurn = Mth.lerp(backBlend, fwdLegTurn, backLegTurn);
+		float frontScale = 1.0f - 0.22f * sideW;
 
 		// ---- Legs: ground-locked stance, whipped swing, articulated knee bend ----------------------------
 		float ts = gaitStanceFrac;
@@ -1726,7 +1753,7 @@ public final class ZeldaAnimationEngine {
 		float rLegN = -Mth.cos(u * twoPi);
 
 		float kneePhaseShift = (strideDir < 0.0f) ? 0.14f : 0.0f;
-		float kneeScale = strideScale * (1.0f - 0.52f * sideMag) * (strideDir < 0.0f ? 0.70f : 1.0f);
+		float kneeScale = strideScale * (1.0f - 0.16f * sideW) * (strideDir < 0.0f ? 0.72f : 1.0f);
 		float kR = Math.max(0.0f, Mth.lerp(jog, WALK_KNEE.eval(u + kneePhaseShift), JOG_KNEE.eval(u + kneePhaseShift)) * kneeScale);
 		float kL = Math.max(0.0f, Mth.lerp(jog, WALK_KNEE.eval(u + 0.5f + kneePhaseShift), JOG_KNEE.eval(u + 0.5f + kneePhaseShift)) * kneeScale);
 
@@ -1801,21 +1828,20 @@ public final class ZeldaAnimationEngine {
 			p.lForearmX = Mth.lerp(alertArm, p.lForearmX, -0.58f);
 		}
 
-		// ---- Side-step shuffle (Z-target strafing) -------------------------------------------------------
-		float shufflePhase = Mth.sin(u * twoPi);
-		float sideStepR = Math.max(0.0f, shufflePhase) * 0.54f * sideMag * strideScale;
-		float sideStepL = Math.max(0.0f, -shufflePhase) * 0.54f * sideMag * strideScale;
-		float sideStrideCross = sideMag * 0.10f * strideScale * Mth.cos(u * twoPi);
+		// ---- Natural angled-hip walk strafe (hips turn toward travel so feet stride naturally) ----
+		float phaseS = Mth.sin(u * twoPi);
+		float stepOutR = Math.max(0.0f, phaseS) * 0.09f * sideW * strideScale;
+		float stepOutL = Math.max(0.0f, -phaseS) * 0.09f * sideW * strideScale;
 
-		p.rLegX = aR + sideStrideCross;
-		p.rLegY = 0.0f;
-		p.rLegZ = 0.028f - smoothBank * 0.10f + 0.06f * sideMag + sideStepR;
-		p.rShinX = kR + sideMag * 0.22f * strideScale;
+		p.rLegX = aR;
+		p.rLegY = legTurn;
+		p.rLegZ = 0.030f - smoothBank * 0.08f + stepOutR;
+		p.rShinX = kR;
 
-		p.lLegX = aL - sideStrideCross;
-		p.lLegY = 0.0f;
-		p.lLegZ = -0.028f - smoothBank * 0.10f - 0.06f * sideMag - sideStepL;
-		p.lShinX = kL + sideMag * 0.22f * strideScale;
+		p.lLegX = aL;
+		p.lLegY = legTurn;
+		p.lLegZ = -0.030f - smoothBank * 0.08f - stepOutL;
+		p.lShinX = kL;
 
 		p.wholeSpinY = 0.0f;
 		p.wholeFlipX = 0.0f;
@@ -1837,18 +1863,21 @@ public final class ZeldaAnimationEngine {
 
 			p.bodyY = Mth.lerp(g, p.bodyY, -0.22f + rLegN * 0.04f);
 		}
-		if (ZeldaTargetingSystem.isFocusActive()) {
+		if (ZeldaTargetingSystem.isFocusActive() || ZeldaQuickItems.isAimingSlingshot()) {
 			p.headY = 0.0f;
-			p.bodyY = Mth.lerp(swordGuardBlend, 0.0f, -0.22f);
-			p.wholeBankZ = strafeRightRel * 0.16f;
+			p.bodyY = Mth.lerp(swordGuardBlend, 0.0f, -0.22f) + swayN * 0.06f * strideScale;
+			p.wholeShiftX = swayN * 0.040f * strideScale;
+			p.wholeBankZ = ZeldaQuickItems.isAimingSlingshot()
+					? (swayN * 0.028f * strideScale + strafeRightRel * 0.03f)
+					: (strafeRightRel * 0.12f + swayN * 0.025f);
 			p.wholeLeanX = (backpedalFactor < -0.15f)
 					? (-0.04f * Math.abs(backpedalFactor))
 					: (p.wholeLeanX * Mth.clamp(backpedalFactor, 0.15f, 1.0f));
 		}
 
-		// Ground contact with articulated 2-segment hip+knee kinematics.
-		float lowest = gaitLowestFootY(p.rLegX, p.lLegX, p.rShinX, p.lShinX, p.wholeLeanX, p.bodyX, p.bodyY);
-		p.wholeOffsetY = -lowest * 0.98f + flightLift - 0.032f * sideMag * strideScale;
+		// Ground contact with articulated 2-segment hip+knee+abduction kinematics.
+		float lowest = gaitLowestFootY(p.rLegX, p.lLegX, p.rShinX, p.lShinX, p.rLegZ, p.lLegZ, p.wholeLeanX, p.bodyX, p.bodyY);
+		p.wholeOffsetY = -lowest * 0.98f + flightLift;
 	}
 
 	// =========================================================================
@@ -2969,15 +2998,18 @@ public final class ZeldaAnimationEngine {
 		m.leftArm.y = Mth.lerp(w, baseShoulderY, lShoulderY);
 		m.leftArm.z = Mth.lerp(w, 0.0f, lShoulderZ);
 
+		float pelvisYaw = (p.rLegY + p.lLegY) * 0.5f;
 		m.rightLeg.xRot = Mth.lerp(w, m.rightLeg.xRot, p.rLegX);
 		m.rightLeg.yRot = Mth.lerp(w, m.rightLeg.yRot, p.rLegY);
 		m.rightLeg.zRot = Mth.lerp(w, m.rightLeg.zRot, p.rLegZ);
-		m.rightLeg.z = Mth.lerp(w, 0.0f, hipZ + 1.6f * Mth.sin(by));
+		m.rightLeg.x = Mth.lerp(w, -1.9f, -1.9f * Mth.cos(pelvisYaw));
+		m.rightLeg.z = Mth.lerp(w, 0.0f, hipZ + 1.6f * Mth.sin(by) + 1.9f * Mth.sin(pelvisYaw));
 
 		m.leftLeg.xRot = Mth.lerp(w, m.leftLeg.xRot, p.lLegX);
 		m.leftLeg.yRot = Mth.lerp(w, m.leftLeg.yRot, p.lLegY);
 		m.leftLeg.zRot = Mth.lerp(w, m.leftLeg.zRot, p.lLegZ);
-		m.leftLeg.z = Mth.lerp(w, 0.0f, hipZ - 1.6f * Mth.sin(by));
+		m.leftLeg.x = Mth.lerp(w, 1.9f, 1.9f * Mth.cos(pelvisYaw));
+		m.leftLeg.z = Mth.lerp(w, 0.0f, hipZ - 1.6f * Mth.sin(by) - 1.9f * Mth.sin(pelvisYaw));
 
 		if (m instanceof ArticulatedPlayerModel apm) {
 			applyChildJoint(apm.ocarina$rightForearm(), apm.ocarina$rightForearmSleeve(),
@@ -3018,8 +3050,10 @@ public final class ZeldaAnimationEngine {
 		m.leftArm.y = baseShoulderY;
 		m.leftArm.z = 0.0f;
 		m.rightLeg.zRot = 0.0f;
+		m.rightLeg.x = -1.9f;
 		m.rightLeg.z = 0.0f;
 		m.leftLeg.zRot = 0.0f;
+		m.leftLeg.x = 1.9f;
 		m.leftLeg.z = 0.0f;
 		if (m instanceof ArticulatedPlayerModel apm) {
 			applyChildJoint(apm.ocarina$rightForearm(), apm.ocarina$rightForearmSleeve(), 0.0f, 0.0f, 1.0f);
@@ -3469,7 +3503,7 @@ public final class ZeldaAnimationEngine {
 	 * Height (world blocks, relative to the model origin) of the lowest corner of either 2-segment leg
 	 * (thigh rotated around hip, shin rotated around knee pivot (0, +6, -2)), after whole-body forward lean.
 	 */
-	private static float gaitLowestFootY(float aR, float aL, float kR, float kL, float lean, float bodyX, float bodyY) {
+	private static float gaitLowestFootY(float aR, float aL, float kR, float kL, float zR, float zL, float lean, float bodyX, float bodyY) {
 		float px = 0.9375f / 16.0f;
 		float hipZ = 10.5f * (float) Math.sin(bodyX);
 		float yawZ = 1.6f * (float) Math.sin(bodyY);
@@ -3479,6 +3513,7 @@ public final class ZeldaAnimationEngine {
 		for (int leg = 0; leg < 2; leg++) {
 			float th = (leg == 0) ? aR : aL;
 			float kn = (leg == 0) ? kR : kL;
+			float cz = (float) Math.cos((leg == 0) ? zR : zL);
 			float hz = hipZ + ((leg == 0) ? yawZ : -yawZ);
 			float ct = (float) Math.cos(th);
 			float st = (float) Math.sin(th);
@@ -3491,7 +3526,7 @@ public final class ZeldaAnimationEngine {
 				float zKnee = 6.0f * sk + zK * ck;
 				float yHip = 6.0f + yKnee;
 				float zHip = -2.0f + zKnee;
-				float yPrime = yHip * ct - zHip * st;
+				float yPrime = (yHip * ct - zHip * st) * cz;
 				float zPrime = yHip * st + zHip * ct;
 				float yF = (12.0f - yPrime) * px;
 				float zF = (hz + zPrime) * px;

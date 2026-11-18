@@ -43,10 +43,12 @@ public final class ZeldaPlayerAnimator {
 
 		lastPartialTick = partialTicks;
 		ZeldaAnimationEngine.ensureWorldUpdated(player, partialTicks, -1.0f);
+		ZeldaActionAnimations.update(player, partialTicks);
 
 		float shiftX = ZeldaAnimationEngine.getWholeShiftRightBlocks();
 		float offsetY = ZeldaAnimationEngine.getWholeOffsetYBlocks() + ZeldaQuickItems.getWholeOffsetYBlocks();
-		float leanForward = ZeldaAnimationEngine.getWholeLeanForwardRad() + ZeldaQuickItems.getWholeLeanForwardRad();
+		float leanForward = ZeldaAnimationEngine.getWholeLeanForwardRad() + ZeldaQuickItems.getWholeLeanForwardRad()
+				+ ZeldaActionAnimations.getWholeLeanForwardRad();
 		float bankRight = ZeldaAnimationEngine.getWholeBankRightRad();
 		float spinYaw = ZeldaAnimationEngine.getWholeSpinYawRad();
 		float flipPitch = ZeldaAnimationEngine.getWholeFlipPitchRad();
@@ -106,6 +108,7 @@ public final class ZeldaPlayerAnimator {
 		ZeldaAnimationEngine.recordLimbSwing(limbSwingAmount);
 		ZeldaAnimationEngine.ensureWorldUpdated(player, lastPartialTick, limbSwingAmount);
 		ZeldaAnimationEngine.applyWorldToModel(model);
+		ZeldaActionAnimations.apply(model, player, lastPartialTick);
 		ZeldaQuickItems.applyHeldPose(model, entity, limbSwingAmount);
 		ZeldaBladeTracker.capture(model, player, lastPartialTick);
 	}

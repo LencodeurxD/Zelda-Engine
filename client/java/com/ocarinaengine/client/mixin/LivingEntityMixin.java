@@ -3,6 +3,7 @@ package com.ocarinaengine.client.mixin;
 import com.ocarinaengine.client.animation.ZeldaAnimationEngine;
 import com.ocarinaengine.client.combat.ZeldaCombatSystem;
 import com.ocarinaengine.client.combat.ZeldaTargetingSystem;
+import com.ocarinaengine.client.items.ZeldaQuickItems;
 import com.ocarinaengine.client.movement.ZeldaLedgeSystem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -126,7 +127,7 @@ public abstract class LivingEntityMixin {
 			player.setYRot(wallYaw);
 			player.yBodyRot = wallYaw;
 			player.yHeadRot = wallYaw;
-		} else if (ZeldaTargetingSystem.isFocusActive() || ZeldaCombatSystem.isSwinging() || ZeldaCombatSystem.isDodging()) {
+		} else if (ZeldaTargetingSystem.isFocusActive() || ZeldaCombatSystem.isSwinging() || ZeldaCombatSystem.isDodging() || ZeldaQuickItems.isAimingSlingshot()) {
 			float lockedYaw = player.getYRot();
 			player.yBodyRot = lockedYaw;
 			player.yHeadRot = lockedYaw;

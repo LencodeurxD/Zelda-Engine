@@ -159,11 +159,15 @@ public final class ZeldaItemRenderer3D {
 	public static void renderBombOverhead(float liftBlend, float throwWindup,
 										  PoseStack poseStack, MultiBufferSource buffer, int packedLight) {
 		poseStack.pushPose();
-		// BOMB_MODEL bottom is at -0.078 blocks (at 0.62 scale); liftY=-0.46 places it at y=-0.54 right between Link's hands
-		float liftY = Mth.lerp(liftBlend, -0.20f, -0.46f);
-		float liftZ = Mth.lerp(liftBlend, -0.36f, -0.21f);
-		// During initial 0..0.28 throw wind-up, pull bomb slightly back behind head with arms before release
-		poseStack.translate(0.0f, liftY + throwWindup * 0.06f, liftZ + throwWindup * 0.20f);
+		// BOMB_MODEL bottom is at +6px = +0.375 blocks (+0.2325 at 0.62 scale); liftY=-0.77 puts bottom at -0.5375 (flush above -0.53125 hat, cradled by raised palms)
+		float yU = Mth.clamp(liftBlend / 0.65f, 0.0f, 1.0f);
+		float zU = Mth.clamp((liftBlend - 0.60f) / 0.40f, 0.0f, 1.0f);
+		float yT = yU * yU * (3.0f - 2.0f * yU);
+		float zT = zU * zU * (3.0f - 2.0f * zU);
+		float liftY = Mth.lerp(yT, 0.02f, -0.77f);
+		float liftZ = Mth.lerp(zT, -0.52f, -0.07f);
+		// During initial 0..0.28 throw wind-up, pull bomb slightly UP & back above the crown (never down into the skull)
+		poseStack.translate(0.0f, liftY - throwWindup * 0.05f, liftZ + throwWindup * 0.14f);
 		poseStack.mulPose(Axis.XP.rotationDegrees(throwWindup * -28.0f));
 		poseStack.scale(0.62f, 0.62f, 0.62f);
 		VertexConsumer vc = buffer.getBuffer(RenderType.entityCutoutNoCull(TEX_BOMB));
@@ -189,14 +193,19 @@ public final class ZeldaItemRenderer3D {
 		poseStack.pushPose();
 		float speed = fuseTicks < 24 ? 1.25f : 0.42f;
 		float pulse = 1.0f + (fuseTicks < 24 ? 0.12f : 0.04f) * Math.max(0.0f, Mth.sin((fuseTicks - partialTick) * speed));
-		// Compact OoT bomb sphere radius (~0.13 blocks) sitting flush on y=0
-		poseStack.translate(0.0f, 0.13f * pulse, 0.0f);
+		// Exact lowest-vertex clearance at any tumble angle so the bomb never clips into the ground block
+		float rollRad = rollDeg * Mth.DEG_TO_RAD;
+		float absC = Math.abs(Mth.cos(rollRad));
+		float absS = Math.abs(Mth.sin(rollRad));
+		float halfExtentPx = Math.max(4.5f * (absC + absS), 3.3f * absC + 5.2f * absS);
+		float centerHeight = (halfExtentPx / 16.0f) * 0.64f * pulse;
+		poseStack.translate(0.0f, centerHeight, 0.0f);
 		poseStack.mulPose(Axis.YP.rotationDegrees(-yawDeg));
 		poseStack.mulPose(Axis.XP.rotationDegrees(rollDeg));
 		poseStack.mulPose(Axis.ZP.rotationDegrees(180.0f));
 		poseStack.scale(0.64f * pulse, 0.64f * pulse, 0.64f * pulse);
-		// Align BOMB_MODEL's sphere center (y = +0.3125 in ModelPart space) onto (0,0,0) so bottom sits at y=0 and fuse points UP!
-		poseStack.translate(0.0f, -0.3125f, 0.0f);
+		// Align BOMB_MODEL's true sphere center (Y in [-3,+6]px -> midpoint +1.5px = +0.09375) onto (0,0,0)
+		poseStack.translate(0.0f, -0.09375f, 0.0f);
 
 		boolean flashOn = fuseTicks < 24 && ((fuseTicks / 2) % 2 == 0);
 		int light = flashOn ? LightTexture.FULL_BRIGHT : packedLight;
