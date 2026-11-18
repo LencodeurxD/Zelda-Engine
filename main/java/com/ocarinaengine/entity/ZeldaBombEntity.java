@@ -182,10 +182,13 @@ public class ZeldaBombEntity extends Entity {
 			this.lerpSteps--;
 		}
 
-		// Accumulate tumble spin proportional to horizontal speed
+		// Accumulate tumble spin while moving, then settle upright once resting on the ground
 		float horizSpeed = (float) Math.hypot(vx, vz);
 		if (horizSpeed > 0.01f) {
 			this.rollDeg += horizSpeed * 220.0f;
+		} else if (this.onGround()) {
+			float upright = Math.round(this.rollDeg / 360.0f) * 360.0f;
+			this.rollDeg = Mth.lerp(0.35f, this.rollDeg, upright);
 		}
 
 		// 7. Fuse countdown (never call entityData.set from client!)
