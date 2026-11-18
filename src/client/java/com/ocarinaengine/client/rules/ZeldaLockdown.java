@@ -2,9 +2,11 @@ package com.ocarinaengine.client.rules;
 
 import com.ocarinaengine.client.chest.ZeldaChestCutscene;
 import com.ocarinaengine.client.combat.ZeldaCombatSystem;
+import com.ocarinaengine.client.combat.ZeldaTargetingSystem;
 import com.ocarinaengine.client.equipment.ZeldaEquipment;
 import com.ocarinaengine.client.gametype.OcarinaGameTypeClient;
 import com.ocarinaengine.client.input.Gamepad;
+import com.ocarinaengine.client.input.ZeldaKeys;
 import com.ocarinaengine.client.items.ZeldaQuickItems;
 import com.ocarinaengine.client.movement.ZeldaLedgeSystem;
 import com.ocarinaengine.client.screen.ZeldaEquipmentScreen;
@@ -118,6 +120,7 @@ public final class ZeldaLockdown {
 			cancelWasDown = false;
 			interactWasDown = false;
 			ZeldaCombatSystem.updateAttackInput(mc, false, false);
+			ZeldaCombatSystem.updateShieldInput(mc, false);
 			return;
 		}
 		Gamepad.poll();
@@ -133,11 +136,13 @@ public final class ZeldaLockdown {
 
 		if (mc.screen != null) {
 			ZeldaCombatSystem.updateAttackInput(mc, false, false);
+			ZeldaCombatSystem.updateShieldInput(mc, false);
 			return;
 		}
 		Options o = mc.options;
 
 		if (ZeldaChestCutscene.isActive()) {
+			ZeldaCombatSystem.updateShieldInput(mc, false);
 			drain(o.keyInventory);
 			drain(o.keyDrop);
 			drain(o.keySwapOffhand);
@@ -205,6 +210,14 @@ public final class ZeldaLockdown {
 				ZeldaCombatSystem.updateAttackInput(mc, false, false);
 			}
 		}
+		boolean aimHeld = ZeldaKeys.isShieldHeld() || ZeldaTargetingSystem.isFocusActive();
+		boolean shieldHeld = activeWin && ZeldaEquipment.hasEquippedShield() && aimHeld;
+		if (shieldHeld) {
+			o.keyShift.setDown(false);
+			drain(o.keyShift);
+			mc.player.setShiftKeyDown(false);
+		}
+		ZeldaCombatSystem.updateShieldInput(mc, shieldHeld);
 		if (ZeldaRules.disablePlacingAndUsingBlocks || ZeldaRules.disableUsingItems) {
 			boolean usePressed = padInteractPressed;
 			while (o.keyUse.consumeClick()) {

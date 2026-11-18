@@ -19,17 +19,21 @@ import com.ocarinaengine.gametype.OcarinaGameType;
 import com.ocarinaengine.network.ChestCutscenePayload;
 import com.ocarinaengine.network.SyncGameTypePayload;
 import com.ocarinaengine.network.SyncZeldaInventoryPayload;
+import com.ocarinaengine.network.ZeldaShieldBlockedPayload;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.minecraft.client.CameraType;
+import net.minecraft.world.phys.Vec3;
 
 public class OcarinaEngineClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
-		// In Zelda mode, enforce a third-person back camera (F5 is free in Minecraft mode).
+		// In Zelda mode, enforce a third-person back camera (F5 is free in Minecraft mode),
+		// and guarantee the per-world Zelda inventory sync arrives after world join.
 		ClientTickEvents.END_CLIENT_TICK.register(client -> {
+			ZeldaInventoryClient.tickEnsureSynced(client);
 			if (OcarinaGameTypeClient.isZelda()
 					&& client.player != null && client.level != null
 					&& client.options.getCameraType() != CameraType.THIRD_PERSON_BACK) {
@@ -40,10 +44,14 @@ public class OcarinaEngineClient implements ClientModInitializer {
 		// Ensure Zelda inventory starts empty and resets cleanly when leaving any world.
 		ZeldaInventoryClient.reset();
 
-		// Synchronize new world GameType choice on join & cleanly reset everything on disconnect.
-		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) ->
-				OcarinaGameTypeClient.onClientJoin(client));
+		// Synchronize new world GameType choice & request inventory sync on join; flush before resetting on disconnect.
+		ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+			OcarinaGameTypeClient.onClientJoin(client);
+			ZeldaInventoryClient.onClientJoin(client);
+		});
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+			ZeldaChestCutscene.flushPendingReward();
+			ZeldaInventoryClient.flushOnDisconnect(client);
 			OcarinaGameTypeClient.onDisconnect();
 			ZeldaInventoryClient.reset();
 			ZeldaChestCutscene.reset();
@@ -81,6 +89,11 @@ public class OcarinaEngineClient implements ClientModInitializer {
 				ZeldaChestCutscene.start(payload);
 			}
 		});
+		ClientPlayNetworking.registerGlobalReceiver(ZeldaShieldBlockedPayload.TYPE, (payload, context) ->
+				context.client().execute(() -> ZeldaCombatSystem.onShieldBlockedClient(
+						new Vec3(payload.x(), payload.y(), payload.z()),
+						payload.burnedDeku(),
+						payload.reflectedMirror())));
 
 		OcarinaEngine.LOGGER.info("[Ocarina Engine] Client initialized (per-world inventory & Zelda/Minecraft modes ready).");
 	}

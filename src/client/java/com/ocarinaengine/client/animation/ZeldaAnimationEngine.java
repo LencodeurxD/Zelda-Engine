@@ -4,6 +4,7 @@ import com.ocarinaengine.client.camera.EngineState;
 import com.ocarinaengine.client.chest.ZeldaChestCutscene;
 import com.ocarinaengine.client.combat.ZeldaCombatSystem;
 import com.ocarinaengine.client.combat.ZeldaTargetingSystem;
+import com.ocarinaengine.client.equipment.ZeldaEquipment;
 import com.ocarinaengine.client.movement.ZeldaLedgeSystem;
 import java.util.concurrent.ThreadLocalRandom;
 import net.minecraft.client.Minecraft;
@@ -924,6 +925,8 @@ public final class ZeldaAnimationEngine {
 
 	// Combat guard & Z-Targeting strafe trackers.
 	private static float swordGuardBlend = 0.0f;
+	private static float shieldRaiseBlend = 0.0f;
+	private static float shieldCrouchBlend = 0.0f;
 	private static float combatPoseBlend = 0.0f;
 	private static float strafeForwardRel = 1.0f;
 	private static float strafeRightRel = 0.0f;
@@ -993,6 +996,12 @@ public final class ZeldaAnimationEngine {
 		landElapsed = 0.0f;
 	}
 
+	public static void clearLandingImpact() {
+		landDuration = 0.0f;
+		landElapsed = 0.0f;
+		landStrength = 0.0f;
+	}
+
 	public static void recordInput(float magnitude, float turnStepDeg, float targetYaw) {
 		inputMagnitude = Mth.clamp(magnitude, 0.0f, 1.0f);
 		inputTurnStepDeg = turnStepDeg;
@@ -1050,6 +1059,8 @@ public final class ZeldaAnimationEngine {
 		landDuration = 0.0f;
 		landStrength = 0.0f;
 		swordGuardBlend = 0.0f;
+		shieldRaiseBlend = 0.0f;
+		shieldCrouchBlend = 0.0f;
 		combatPoseBlend = 0.0f;
 		strafeForwardRel = 1.0f;
 		strafeRightRel = 0.0f;
@@ -1077,7 +1088,7 @@ public final class ZeldaAnimationEngine {
 				&& !player.isPassenger()
 				&& !player.isSleeping()
 				&& !player.isDeadOrDying()
-				&& !player.isCrouching()
+				&& (!player.isCrouching() || ZeldaCombatSystem.isGuarding())
 				&& !player.isUsingItem()
 				&& player.hurtTime <= 0;
 	}
@@ -1290,7 +1301,7 @@ public final class ZeldaAnimationEngine {
 				}
 			} else {
 				if (airborneActive && onGround && canAnimate) {
-					if (airTime > 0.14f || peakFallSpeed > 0.22f) {
+					if (!ZeldaCombatSystem.isRolling() && (airTime > 0.14f || peakFallSpeed > 0.22f)) {
 						landStrength = Mth.clamp((peakFallSpeed - 0.10f) / 0.64f, 0.36f, 1.0f);
 						landDuration = Mth.lerp(landStrength, 0.24f, 0.40f);
 						landElapsed = 0.0f;
@@ -1374,6 +1385,10 @@ public final class ZeldaAnimationEngine {
 			boolean swordDrawn = ZeldaCombatSystem.isSwordDrawn();
 			boolean activeCombat = ZeldaCombatSystem.isActiveCombat();
 			swordGuardBlend = damp(swordGuardBlend, (targeting || swordDrawn) ? 1.0f : 0.0f, targeting ? 16.0f : 11.0f, dt);
+			boolean guarding = ZeldaCombatSystem.isGuarding();
+			boolean crouchTurtle = ZeldaCombatSystem.isShieldCrouchTurtling();
+			shieldRaiseBlend = damp(shieldRaiseBlend, guarding ? 1.0f : 0.0f, guarding ? 24.0f : 18.0f, dt);
+			shieldCrouchBlend = damp(shieldCrouchBlend, crouchTurtle ? 1.0f : 0.0f, crouchTurtle ? 20.0f : 18.0f, dt);
 			combatPoseBlend = damp(combatPoseBlend, activeCombat ? 1.0f : 0.0f, activeCombat ? 28.0f : 16.0f, dt);
 
 			if (focusing && inputMagnitude > 0.03f) {
@@ -1385,7 +1400,7 @@ public final class ZeldaAnimationEngine {
 				strafeRightRel = damp(strafeRightRel, 0.0f, 16.0f, dt);
 			}
 
-			if (moveBlend < 0.96f && !airborneActive && !focusing && !activeCombat) {
+			if (moveBlend < 0.96f && !airborneActive && !focusing && !activeCombat && !guarding) {
 				idleClock += dt;
 				if (now - lastContextSenseNanos > 65_000_000L || !idleInitialized) {
 					lastContextSenseNanos = now;
@@ -1397,7 +1412,7 @@ public final class ZeldaAnimationEngine {
 				}
 				advanceIdleActionTimers(dt);
 			}
-			if (moveBlend > 0.12f || airborneActive || focusing || activeCombat) {
+			if (moveBlend > 0.12f || airborneActive || focusing || activeCombat || guarding) {
 				idleClock = 0.0f;
 				resetFidgetTimers();
 			}
@@ -1445,6 +1460,9 @@ public final class ZeldaAnimationEngine {
 
 		if (landDuration > 0.0f && airBlend < 0.65f) {
 			applyLandingImpact(finalPose, moveBlend);
+		}
+		if (shieldRaiseBlend > 0.01f && !ZeldaCombatSystem.isActiveCombat() && !ZeldaCombatSystem.isChargingSpin()) {
+			applyShieldGuardOverlay(finalPose, shieldRaiseBlend, shieldCrouchBlend, ZeldaCombatSystem.getShieldImpactRecoil());
 		}
 
 		boolean activeCombatNow = ZeldaCombatSystem.isActiveCombat();
@@ -1532,6 +1550,10 @@ public final class ZeldaAnimationEngine {
 
 	public static float getWholeRollZRad() {
 		return idleInitialized ? finalPose.wholeRollZ * engineWeight : 0.0f;
+	}
+
+	public static float getShieldRaiseBlend() {
+		return idleInitialized ? shieldRaiseBlend * engineWeight : 0.0f;
 	}
 
 	public static float getWholeScaleY() {
@@ -1862,6 +1884,37 @@ public final class ZeldaAnimationEngine {
 			p.lLegZ = Mth.lerp(g, p.lLegZ, -0.08f);
 			p.rShinX = Mth.lerp(g, p.rShinX, 0.14f);
 			p.lShinX = Mth.lerp(g, p.lShinX, 0.24f);
+		}
+	}
+
+	private static void applyShieldGuardOverlay(Pose p, float g, float crouch, float impact) {
+		// Left shield arm brought cleanly across Link's chest / jaw with optional block impact recoil
+		p.lArmX = Mth.lerp(g, p.lArmX, -0.88f - 0.14f * crouch + 0.22f * impact);
+		p.lArmY = Mth.lerp(g, p.lArmY, 1.06f + 0.12f * crouch);
+		p.lArmZ = Mth.lerp(g, p.lArmZ, -0.10f);
+		p.lForearmX = Mth.lerp(g, p.lForearmX, -0.82f + 0.18f * impact);
+		p.lForearmY = Mth.lerp(g, p.lForearmY, 0.24f);
+
+		// Slight torso brace behind shield; when unarmed, brace the right arm too
+		p.bodyY = Mth.lerp(g, p.bodyY, 0.28f);
+		p.headY = Mth.lerp(g, p.headY, -0.24f);
+		if (!ZeldaEquipment.hasEquippedSword()) {
+			p.rArmX = Mth.lerp(g, p.rArmX, -0.44f + 0.12f * impact);
+			p.rArmY = Mth.lerp(g, p.rArmY, -0.12f);
+			p.rArmZ = Mth.lerp(g, p.rArmZ, 0.16f);
+			p.rForearmX = Mth.lerp(g, p.rForearmX, -0.74f);
+		}
+
+		// Hylian Shield crouch-turtle when stationary (Link tucks low beneath the kite shield)
+		if (crouch > 0.01f) {
+			float c = g * crouch;
+			p.wholeOffsetY = Mth.lerp(c, p.wholeOffsetY, -0.38f);
+			p.wholeLeanX = Mth.lerp(c, p.wholeLeanX, 0.34f);
+			p.headX = Mth.lerp(c, p.headX, 0.28f);
+			p.rLegX = Mth.lerp(c, p.rLegX, -1.08f);
+			p.lLegX = Mth.lerp(c, p.lLegX, -1.00f);
+			p.rShinX = Mth.lerp(c, p.rShinX, 1.48f);
+			p.lShinX = Mth.lerp(c, p.lShinX, 1.42f);
 		}
 	}
 
@@ -2991,7 +3044,7 @@ public final class ZeldaAnimationEngine {
 				&& !player.isUsingItem()
 				&& player.swingTime <= 0
 				&& !player.isSleeping()
-				&& !player.isCrouching();
+				&& (!player.isCrouching() || ZeldaCombatSystem.isGuarding());
 	}
 
 	private static void sensePeripheralEnemy(LocalPlayer player) {

@@ -1,9 +1,12 @@
 package com.ocarinaengine.inventory;
 
+import com.ocarinaengine.network.RequestZeldaInventoryPayload;
 import com.ocarinaengine.network.SaveZeldaInventoryPayload;
 import com.ocarinaengine.network.SyncZeldaInventoryPayload;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
@@ -16,16 +19,29 @@ public final class OcarinaInventoryServer {
 	public static void register() {
 		ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
 			ServerPlayer player = handler.getPlayer();
-			ZeldaInventorySnapshot snapshot = OcarinaInventoryData.get(server).getForPlayer(player.getUUID());
+			ZeldaInventorySnapshot snapshot = OcarinaInventoryData.get(server).getForPlayer(server, player.getUUID());
+			sender.sendPacket(new SyncZeldaInventoryPayload(snapshot));
+		});
+
+		ServerPlayNetworking.registerGlobalReceiver(RequestZeldaInventoryPayload.TYPE, (payload, context) -> {
+			ServerPlayer player = context.player();
+			MinecraftServer server = context.server();
+			if (server == null) {
+				return;
+			}
+			ZeldaInventorySnapshot snapshot = OcarinaInventoryData.get(server).getForPlayer(server, player.getUUID());
 			ServerPlayNetworking.send(player, new SyncZeldaInventoryPayload(snapshot));
 		});
 
 		ServerPlayNetworking.registerGlobalReceiver(SaveZeldaInventoryPayload.TYPE, (payload, context) -> {
 			ServerPlayer player = context.player();
-			if (player.server == null) {
+			MinecraftServer server = context.server();
+			if (server == null) {
 				return;
 			}
-			OcarinaInventoryData.get(player.server).setForPlayer(player.getUUID(), payload.snapshot());
+			OcarinaInventoryData.get(server).setForPlayer(server, player.getUUID(), payload.snapshot());
 		});
+
+		ServerLifecycleEvents.SERVER_STOPPED.register(OcarinaInventoryData::clearActiveServer);
 	}
 }

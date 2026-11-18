@@ -121,6 +121,14 @@ public final class ZeldaChestCutscene {
 		return OcarinaGameTypeClient.isZelda() && active;
 	}
 
+	/** Grants an uncollected chest reward before disconnect so quitting mid-cutscene never loses loot. */
+	public static void flushPendingReward() {
+		if (active && !itemGranted && !rewardStack.isEmpty()) {
+			itemGranted = true;
+			grantReward();
+		}
+	}
+
 	public static void reset() {
 		active = false;
 		suppressJumpUntilRelease = false;

@@ -14,6 +14,7 @@ import net.minecraft.world.item.Items;
 
 /**
  * Equipment owned and currently equipped by the player (Swords, Shields, Outfits, Masks, Boots).
+ * Swords (row 1) and Shields (row 2) equip independently so Link can wield both together like in OoT.
  * Persisted strictly per-world via server SavedData ({@link ZeldaInventoryClient}) instead of a global config file.
  */
 public final class ZeldaEquipment {
@@ -28,9 +29,36 @@ public final class ZeldaEquipment {
 			Items.WOODEN_SWORD
 	);
 
+	public static final ZeldaItem DEKU_SHIELD = new ZeldaItem(
+			"deku_shield",
+			EquipSlot.SHIELD,
+			"Deku Shield",
+			"A light Kokiri wooden shield. Hold Guard to block frontal hits and projectiles, but beware of fire!",
+			Items.SHIELD
+	);
+
+	public static final ZeldaItem HYLIAN_SHIELD = new ZeldaItem(
+			"hylian_shield",
+			EquipSlot.SHIELD,
+			"Hylian Shield",
+			"A sturdy fireproof steel kite shield. Hold Guard while stationary to crouch-turtle under it.",
+			Items.SHIELD
+	);
+
+	public static final ZeldaItem MIRROR_SHIELD = new ZeldaItem(
+			"mirror_shield",
+			EquipSlot.SHIELD,
+			"Mirror Shield",
+			"A sacred Gerudo mirror shield. Fireproof and reflects magic beams & fireballs back at foes.",
+			Items.SHIELD
+	);
+
 	private static final Map<String, ZeldaItem> CATALOG = new LinkedHashMap<>();
 	static {
 		registerCatalog(WOODEN_SWORD);
+		registerCatalog(DEKU_SHIELD);
+		registerCatalog(HYLIAN_SHIELD);
+		registerCatalog(MIRROR_SHIELD);
 	}
 
 	public static final List<ZeldaItem> OWNED = new ArrayList<>();
@@ -61,6 +89,20 @@ public final class ZeldaEquipment {
 				|| rawName.equalsIgnoreCase("Wooden Sword")
 				|| rawName.equalsIgnoreCase("Kokiri Sword")) {
 			return WOODEN_SWORD;
+		}
+		if (rawName.equalsIgnoreCase("Deku Shield")
+				|| rawName.equalsIgnoreCase("Kokiri Shield")
+				|| rawName.equalsIgnoreCase("Bouclier Mojo")) {
+			return DEKU_SHIELD;
+		}
+		if (rawName.equalsIgnoreCase("Mirror Shield")
+				|| rawName.equalsIgnoreCase("Bouclier Miroir")) {
+			return MIRROR_SHIELD;
+		}
+		if (stack.is(Items.SHIELD)
+				|| rawName.equalsIgnoreCase("Hylian Shield")
+				|| rawName.equalsIgnoreCase("Bouclier Hylien")) {
+			return HYLIAN_SHIELD;
 		}
 		return null;
 	}
@@ -122,6 +164,43 @@ public final class ZeldaEquipment {
 
 	public static boolean hasEquippedSword() {
 		return equippedSword() != null;
+	}
+
+	public static ZeldaItem equippedShield() {
+		return equipped(EquipSlot.SHIELD);
+	}
+
+	public static boolean hasEquippedShield() {
+		return equippedShield() != null;
+	}
+
+	public static String equippedShieldId() {
+		ZeldaItem shield = equippedShield();
+		return shield != null ? shield.id() : "";
+	}
+
+	public static boolean isDekuShieldEquipped() {
+		ZeldaItem shield = equippedShield();
+		return shield != null && shield.id().equals(DEKU_SHIELD.id());
+	}
+
+	public static boolean isHylianShieldEquipped() {
+		ZeldaItem shield = equippedShield();
+		return shield != null && shield.id().equals(HYLIAN_SHIELD.id());
+	}
+
+	public static boolean isMirrorShieldEquipped() {
+		ZeldaItem shield = equippedShield();
+		return shield != null && shield.id().equals(MIRROR_SHIELD.id());
+	}
+
+	/** OoT rule: fire damage burns up an equipped Deku Shield and removes it from inventory. */
+	public static void burnDekuShield() {
+		OWNED.removeIf(item -> item.id().equals(DEKU_SHIELD.id()));
+		if (DEKU_SHIELD.id().equals(EQUIPPED.get(EquipSlot.SHIELD))) {
+			EQUIPPED.remove(EquipSlot.SHIELD);
+		}
+		save();
 	}
 
 	/** Equips the item, or removes it if already equipped (an outfit always stays equipped). */

@@ -2,7 +2,7 @@
 	"key.categories.ocarina_engine": "Ocarina Engine",
 	"key.ocarina_engine.quick_menu": "Menu rapide d'objets (R)",
 	"key.ocarina_engine.use_quick_item": "Utiliser l'objet rapide (ZR)",
-	"key.ocarina_engine.target_lock": "Visée Z-Target / Centrer la caméra",
+	"key.ocarina_engine.target_lock": "Visée Z-Target / Bouclier (ZL)",
 	"ocarina_engine.create_world.gametype": "Type de jeu",
 	"ocarina_engine.gametype.zelda": "Zelda",
 	"ocarina_engine.gametype.minecraft": "Minecraft",

@@ -2,6 +2,8 @@ package com.ocarinaengine;
 
 import com.ocarinaengine.chest.ZeldaChestServer;
 import com.ocarinaengine.combat.ZeldaCombatServer;
+import com.ocarinaengine.combat.ZeldaFallServer;
+import com.ocarinaengine.combat.ZeldaShieldServer;
 import com.ocarinaengine.command.GametypeCommand;
 import com.ocarinaengine.command.ZeldaChestCommands;
 import com.ocarinaengine.gametype.OcarinaGameTypeServer;
@@ -10,9 +12,13 @@ import com.ocarinaengine.network.ChestCutscenePayload;
 import com.ocarinaengine.network.FinishZeldaChestPayload;
 import com.ocarinaengine.network.InitWorldGameTypePayload;
 import com.ocarinaengine.network.OpenZeldaChestPayload;
+import com.ocarinaengine.network.RequestZeldaInventoryPayload;
 import com.ocarinaengine.network.SaveZeldaInventoryPayload;
 import com.ocarinaengine.network.SyncGameTypePayload;
 import com.ocarinaengine.network.SyncZeldaInventoryPayload;
+import com.ocarinaengine.network.ZeldaLandingRollPayload;
+import com.ocarinaengine.network.ZeldaShieldBlockedPayload;
+import com.ocarinaengine.network.ZeldaShieldStatePayload;
 import com.ocarinaengine.network.ZeldaSwordAttackPayload;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -31,13 +37,20 @@ public class OcarinaEngine implements ModInitializer {
 		PayloadTypeRegistry.playC2S().register(FinishZeldaChestPayload.TYPE, FinishZeldaChestPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(ZeldaSwordAttackPayload.TYPE, ZeldaSwordAttackPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(InitWorldGameTypePayload.TYPE, InitWorldGameTypePayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(RequestZeldaInventoryPayload.TYPE, RequestZeldaInventoryPayload.CODEC);
 		PayloadTypeRegistry.playC2S().register(SaveZeldaInventoryPayload.TYPE, SaveZeldaInventoryPayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(ZeldaShieldStatePayload.TYPE, ZeldaShieldStatePayload.CODEC);
+		PayloadTypeRegistry.playC2S().register(ZeldaLandingRollPayload.TYPE, ZeldaLandingRollPayload.CODEC);
+
 		PayloadTypeRegistry.playS2C().register(ChestCutscenePayload.TYPE, ChestCutscenePayload.CODEC);
+		PayloadTypeRegistry.playS2C().register(ZeldaShieldBlockedPayload.TYPE, ZeldaShieldBlockedPayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(SyncGameTypePayload.TYPE, SyncGameTypePayload.CODEC);
 		PayloadTypeRegistry.playS2C().register(SyncZeldaInventoryPayload.TYPE, SyncZeldaInventoryPayload.CODEC);
 
 		ZeldaChestServer.register();
 		ZeldaCombatServer.register();
+		ZeldaFallServer.register();
+		ZeldaShieldServer.register();
 		OcarinaGameTypeServer.register();
 		OcarinaInventoryServer.register();
 

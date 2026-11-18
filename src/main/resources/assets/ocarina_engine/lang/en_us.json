@@ -2,7 +2,7 @@
 	"key.categories.ocarina_engine": "Ocarina Engine",
 	"key.ocarina_engine.quick_menu": "Quick item menu (R)",
 	"key.ocarina_engine.use_quick_item": "Use quick item (ZR)",
-	"key.ocarina_engine.target_lock": "Z-Target / Center Camera",
+	"key.ocarina_engine.target_lock": "Z-Target / Shield Guard (ZL)",
 	"ocarina_engine.create_world.gametype": "Game Type",
 	"ocarina_engine.gametype.zelda": "Zelda",
 	"ocarina_engine.gametype.minecraft": "Minecraft",

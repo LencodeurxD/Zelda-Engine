@@ -29,7 +29,11 @@ public final class ZeldaChestCommands {
 				.then(Commands.literal("chest")
 						.executes(ctx -> placeChest(ctx.getSource(), false)))
 				.then(Commands.literal("double_chest")
-						.executes(ctx -> placeChest(ctx.getSource(), true))));
+						.executes(ctx -> placeChest(ctx.getSource(), true)))
+				.then(Commands.literal("shield_chest")
+						.then(Commands.literal("deku").executes(ctx -> placeShieldChest(ctx.getSource(), "Deku Shield")))
+						.then(Commands.literal("hylian").executes(ctx -> placeShieldChest(ctx.getSource(), "Hylian Shield")))
+						.then(Commands.literal("mirror").executes(ctx -> placeShieldChest(ctx.getSource(), "Mirror Shield")))));
 	}
 
 	private static int placeChest(CommandSourceStack source, boolean doubleChest) {
@@ -88,6 +92,40 @@ public final class ZeldaChestCommands {
 			ItemStack sword = new ItemStack(Items.WOODEN_SWORD, 1);
 			sword.set(DataComponents.CUSTOM_NAME, Component.literal("Wooden Sword").withStyle(s -> s.withItalic(false)));
 			chest.setItem(0, sword);
+			chest.setChanged();
+		}
+	}
+
+	private static int placeShieldChest(CommandSourceStack source, String shieldName) {
+		if (!(source.getEntity() instanceof ServerPlayer player)) {
+			source.sendFailure(Component.literal("Only a player can run this command."));
+			return 0;
+		}
+		ServerLevel level = player.serverLevel();
+		Direction playerDir = player.getDirection();
+		Direction chestFacing = playerDir.getOpposite();
+		BlockPos basePos = player.blockPosition().relative(playerDir, 2);
+		BlockPos rightPos = basePos.relative(chestFacing.getClockWise());
+		BlockState leftState = Blocks.CHEST.defaultBlockState()
+				.setValue(ChestBlock.FACING, chestFacing)
+				.setValue(ChestBlock.TYPE, ChestType.LEFT);
+		BlockState rightState = Blocks.CHEST.defaultBlockState()
+				.setValue(ChestBlock.FACING, chestFacing)
+				.setValue(ChestBlock.TYPE, ChestType.RIGHT);
+		level.setBlock(basePos, leftState, 3);
+		level.setBlock(rightPos, rightState, 3);
+		fillWithShield(level, basePos, shieldName);
+		clearChest(level, rightPos);
+		source.sendSuccess(() -> Component.literal("Placed a shield chest containing a " + shieldName + "."), true);
+		return 1;
+	}
+
+	private static void fillWithShield(ServerLevel level, BlockPos pos, String shieldName) {
+		if (level.getBlockEntity(pos) instanceof ChestBlockEntity chest) {
+			chest.clearContent();
+			ItemStack shield = new ItemStack(Items.SHIELD, 1);
+			shield.set(DataComponents.CUSTOM_NAME, Component.literal(shieldName).withStyle(st -> st.withItalic(false)));
+			chest.setItem(0, shield);
 			chest.setChanged();
 		}
 	}

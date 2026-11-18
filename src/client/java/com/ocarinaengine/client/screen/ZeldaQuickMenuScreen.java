@@ -1,6 +1,7 @@
 package com.ocarinaengine.client.screen;
 
 import com.ocarinaengine.client.input.Gamepad;
+import com.ocarinaengine.client.inventory.ZeldaInventoryClient;
 import com.ocarinaengine.client.input.ZeldaKeys;
 import com.ocarinaengine.client.items.QuickItem;
 import com.ocarinaengine.client.items.ZeldaQuickItems;
@@ -104,6 +105,9 @@ public final class ZeldaQuickMenuScreen extends Screen {
 	@Override
 	public void removed() {
 		applyGlfwCursorMode(false);
+		if (ZeldaInventoryClient.isSynced()) {
+			ZeldaInventoryClient.sendSnapshot();
+		}
 		super.removed();
 	}
 

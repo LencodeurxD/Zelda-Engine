@@ -9,6 +9,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -58,6 +59,8 @@ public final class ZeldaChestServer {
 				handleOpen(context.player(), payload.pos()));
 		ServerPlayNetworking.registerGlobalReceiver(FinishZeldaChestPayload.TYPE, (payload, context) ->
 				handleFinish(context.player(), payload.pos()));
+		ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+				handleDisconnect(handler.getPlayer().getUUID()));
 		ServerTickEvents.END_SERVER_TICK.register(ZeldaChestServer::tick);
 	}
 
@@ -120,6 +123,17 @@ public final class ZeldaChestServer {
 		while (it.hasNext()) {
 			OpenChest oc = it.next();
 			if (oc.playerId.equals(player.getUUID()) && (oc.pos.equals(pos) || oc.otherPos.equals(pos))) {
+				closeLid(oc);
+				it.remove();
+			}
+		}
+	}
+
+	private static void handleDisconnect(UUID playerId) {
+		Iterator<OpenChest> it = OPEN_CHESTS.iterator();
+		while (it.hasNext()) {
+			OpenChest oc = it.next();
+			if (oc.playerId.equals(playerId)) {
 				closeLid(oc);
 				it.remove();
 			}

@@ -11,6 +11,9 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.mojang.math.Axis;
 import com.ocarinaengine.client.chest.ZeldaChestCutscene;
+import com.ocarinaengine.client.equipment.EquipSlot;
+import com.ocarinaengine.client.equipment.ZeldaEquipment;
+import com.ocarinaengine.client.equipment.ZeldaItem;
 import com.ocarinaengine.client.gametype.OcarinaGameTypeClient;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderContext;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -67,16 +70,21 @@ public final class ZeldaLightEffects {
 		pose.scale(s, s, s);
 
 		MultiBufferSource.BufferSource immediate = mc.renderBuffers().bufferSource();
-		mc.getItemRenderer().renderStatic(
-				reward,
-				ItemDisplayContext.FIXED,
-				LightTexture.FULL_BRIGHT,
-				OverlayTexture.NO_OVERLAY,
-				pose,
-				immediate,
-				mc.level,
-				0
-		);
+		ZeldaItem rewardEquip = ZeldaEquipment.previewEquipment(reward);
+		if (rewardEquip != null && rewardEquip.slot() == EquipSlot.SHIELD) {
+			ZeldaShieldRenderer.renderStandingSpin(rewardEquip.id(), pose, immediate, LightTexture.FULL_BRIGHT);
+		} else {
+			mc.getItemRenderer().renderStatic(
+					reward,
+					ItemDisplayContext.FIXED,
+					LightTexture.FULL_BRIGHT,
+					OverlayTexture.NO_OVERLAY,
+					pose,
+					immediate,
+					mc.level,
+					0
+			);
+		}
 		immediate.endBatch();
 		pose.popPose();
 	}

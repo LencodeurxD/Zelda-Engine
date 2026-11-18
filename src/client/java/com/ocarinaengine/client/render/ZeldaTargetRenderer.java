@@ -72,6 +72,12 @@ public final class ZeldaTargetRenderer {
 			renderImpactBurst(context, pose, camPos, ZeldaCombatSystem.getLastImpactPos(),
 					impactProg, ZeldaCombatSystem.isLastImpactHeavy());
 		}
+
+		float shieldProg = ZeldaCombatSystem.getShieldBurstProgress();
+		if (shieldProg >= 0.0f) {
+			renderShieldBlockBurst(context, pose, camPos, ZeldaCombatSystem.getLastShieldBurstPos(),
+					shieldProg, ZeldaCombatSystem.isLastShieldReflect());
+		}
 	}
 
 	private static void renderLockedReticle(WorldRenderContext context, PoseStack pose, Vec3 camPos,
@@ -344,6 +350,66 @@ public final class ZeldaTargetRenderer {
 			buf.addVertex(mat, dx * rTip, dy * rTip, 0.0f).setColor(255, 155, 215, 0);
 			buf.addVertex(mat, dx * rBase + px, dy * rBase + py, 0.0f).setColor(255, 255, 255, sAlpha);
 			buf.addVertex(mat, dx * rBase - px, dy * rBase - py, 0.0f).setColor(255, 130, 195, sAlpha);
+		}
+
+		MeshData mesh = buf.build();
+		if (mesh != null) {
+			BufferUploader.drawWithShader(mesh);
+		}
+
+		RenderSystem.depthMask(true);
+		RenderSystem.enableDepthTest();
+		RenderSystem.enableCull();
+		RenderSystem.defaultBlendFunc();
+		RenderSystem.disableBlend();
+		pose.popPose();
+	}
+
+	private static void renderShieldBlockBurst(WorldRenderContext context, PoseStack pose, Vec3 camPos,
+											   Vec3 impactPos, float progress, boolean reflectedMirror) {
+		float fade = (1.0f - progress) * (1.0f - progress);
+		if (fade <= 0.02f) {
+			return;
+		}
+		pose.pushPose();
+		pose.translate(impactPos.x - camPos.x, impactPos.y - camPos.y, impactPos.z - camPos.z);
+		pose.mulPose(context.camera().rotation());
+
+		RenderSystem.enableBlend();
+		RenderSystem.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE);
+		RenderSystem.disableDepthTest();
+		RenderSystem.disableCull();
+		RenderSystem.depthMask(false);
+		RenderSystem.setShader(GameRenderer::getPositionColorShader);
+
+		BufferBuilder buf = Tesselator.getInstance().begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+		Matrix4f mat = pose.last().pose();
+
+		float scale = (reflectedMirror ? 1.38f : 1.02f) * (0.45f + 0.85f * progress);
+		int r = reflectedMirror ? 110 : 255;
+		int g = reflectedMirror ? 242 : 210;
+		int b = reflectedMirror ? 255 : 95;
+		int haloAlpha = Math.round(210 * fade);
+		int coreAlpha = Math.round(255 * fade);
+
+		addDiamondBeam(buf, mat, 1.0f, 0.0f, scale * 1.15f, scale * 0.14f, r, g, b, haloAlpha, Math.round(150 * fade));
+		addDiamondBeam(buf, mat, 0.0f, 1.0f, scale * 1.15f, scale * 0.14f, r, g, b, haloAlpha, Math.round(150 * fade));
+		addDiamondBeam(buf, mat, 0.707f, 0.707f, scale * 0.85f, scale * 0.08f, 255, 255, 255, coreAlpha, coreAlpha);
+
+		int sparks = reflectedMirror ? 12 : 8;
+		float travel = (0.16f + 0.88f * progress) * scale;
+		for (int i = 0; i < sparks; i++) {
+			float a = i * (Mth.TWO_PI / sparks);
+			float dx = Mth.cos(a);
+			float dy = Mth.sin(a);
+			float px = -dy * (scale * 0.032f);
+			float py = dx * (scale * 0.032f);
+			float rBase = travel * 0.42f;
+			float rTip = rBase + scale * 0.44f * (1.0f - 0.35f * progress);
+			int sAlpha = Math.round(220 * fade);
+			buf.addVertex(mat, dx * rTip, dy * rTip, 0.0f).setColor(r, g, b, 0);
+			buf.addVertex(mat, dx * rBase + px, dy * rBase + py, 0.0f).setColor(255, 255, 255, sAlpha);
+			buf.addVertex(mat, dx * rBase - px, dy * rBase - py, 0.0f).setColor(r, g, b, sAlpha);
 		}
 
 		MeshData mesh = buf.build();

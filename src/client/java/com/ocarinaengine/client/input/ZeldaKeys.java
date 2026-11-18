@@ -6,7 +6,7 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
-/** Engine keybindings (configurable in Options > Controls). Gamepad: ZL (LT), RB, and RT. */
+/** Engine keybindings (configurable in Options > Controls). Gamepad: ZL (LT), LB, RB, and RT. */
 public final class ZeldaKeys {
 	private static final String CATEGORY = "key.categories.ocarina_engine";
 
@@ -14,7 +14,7 @@ public final class ZeldaKeys {
 	public static KeyMapping quickMenu;
 	/** ZR button: uses the selected item. */
 	public static KeyMapping useQuickItem;
-	/** Z / ZL button: Z-Target lock onto enemies or center the camera behind Link. */
+	/** Z / ZL button: Z-Target lock onto enemies, center camera, and raise equipped shield. */
 	public static KeyMapping targetLock;
 
 	private ZeldaKeys() {}
@@ -36,6 +36,11 @@ public final class ZeldaKeys {
 	/** True while Z-Target lock key/mouse button is physically held down. */
 	public static boolean isTargetLockHeld() {
 		return isBindingHeld(targetLock);
+	}
+
+	/** True while aiming (Z / ZL / LT held) to raise Link's equipped shield. */
+	public static boolean isShieldHeld() {
+		return isTargetLockHeld() || (Gamepad.connected && Gamepad.leftTrigger);
 	}
 
 	private static boolean isBindingHeld(KeyMapping mapping) {

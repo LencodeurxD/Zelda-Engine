@@ -8,6 +8,8 @@ import com.ocarinaengine.client.gametype.OcarinaGameTypeClient;
 import com.ocarinaengine.client.input.Gamepad;
 import com.ocarinaengine.client.movement.ZeldaLedgeSystem;
 import com.ocarinaengine.combat.ZeldaCombatServer;
+import com.ocarinaengine.network.ZeldaLandingRollPayload;
+import com.ocarinaengine.network.ZeldaShieldStatePayload;
 import com.ocarinaengine.network.ZeldaSwordAttackPayload;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -76,6 +78,8 @@ public final class ZeldaCombatSystem {
 	private static final float COMBO_CHAIN_WINDOW = 0.42f;
 	private static final float JUMP_SLAM_DURATION = 0.34f;
 	private static final long BLINK_TOTAL_NANOS = 360_000_000L;
+	private static final float MIN_LANDING_ROLL_FALL_BLOCKS = 4.0f;
+	private static final float MAX_LANDING_ROLL_FALL_BLOCKS = 20.25f;
 
 	private static SwordMove currentMove = SwordMove.NONE;
 	private static float moveElapsed = 0.0f;
@@ -105,6 +109,8 @@ public final class ZeldaCombatSystem {
 	private static float dodgeElapsed = 0.0f;
 	private static float dodgeYawDeg = 0.0f;
 	private static boolean rollFinishFxPlayed = false;
+	private static int airAdvanceGraceTicks = 0;
+	private static float airAdvanceYawDeg = 0.0f;
 
 	private static float swordDrawnTimer = 0.0f;
 	private static boolean swordWasDrawn = false;
@@ -131,6 +137,20 @@ public final class ZeldaCombatSystem {
 	private static boolean lastImpactHeavy = false;
 	private static int impactHitSign = 1;
 
+	// Ocarina of Time shield state, Hylian 360-degree crouch-turtle, and block spark burst.
+	private static boolean shieldHeld = false;
+	private static boolean shieldCrouchTurtling = false;
+	private static float shieldReadyTimer = 0.0f;
+	private static float shieldImpactTimer = 0.0f;
+	private static final float SHIELD_IMPACT_DURATION = 0.22f;
+	private static boolean lastSentGuarding = false;
+	private static boolean lastSentCrouching = false;
+	private static String lastSentShieldId = "";
+	private static float shieldBurstTimer = 0.0f;
+	private static float shieldBurstDuration = 0.0f;
+	private static Vec3 lastShieldBurstPos = Vec3.ZERO;
+	private static boolean lastShieldReflect = false;
+
 	private ZeldaCombatSystem() {}
 
 	public static void register() {
@@ -155,6 +175,8 @@ public final class ZeldaCombatSystem {
 		currentDodge = DodgeMove.NONE;
 		dodgeElapsed = 0.0f;
 		rollFinishFxPlayed = false;
+		airAdvanceGraceTicks = 0;
+		airAdvanceYawDeg = 0.0f;
 		swordDrawnTimer = 0.0f;
 		swordWasDrawn = false;
 		manuallySheathed = false;
@@ -174,6 +196,17 @@ public final class ZeldaCombatSystem {
 		lastImpactMove = SwordMove.NONE;
 		lastImpactPos = Vec3.ZERO;
 		lastImpactHeavy = false;
+		shieldHeld = false;
+		shieldCrouchTurtling = false;
+		shieldReadyTimer = 0.0f;
+		shieldImpactTimer = 0.0f;
+		lastSentGuarding = false;
+		lastSentCrouching = false;
+		lastSentShieldId = "";
+		shieldBurstTimer = 0.0f;
+		shieldBurstDuration = 0.0f;
+		lastShieldBurstPos = Vec3.ZERO;
+		lastShieldReflect = false;
 		ZeldaBladeTracker.reset();
 	}
 
@@ -190,6 +223,10 @@ public final class ZeldaCombatSystem {
 		dodgeElapsed = 0.0f;
 		attackHoldTime = 0.0f;
 		chargeReadyPlayed = false;
+		shieldHeld = false;
+		shieldCrouchTurtling = false;
+		shieldReadyTimer = 0.0f;
+		shieldImpactTimer = 0.0f;
 	}
 
 	public static SwordMove getCurrentMove() {
@@ -318,6 +355,12 @@ public final class ZeldaCombatSystem {
 		if (impactShakeTimer > 0.0f) {
 			impactShakeTimer = Math.max(0.0f, impactShakeTimer - dt);
 		}
+		if (shieldBurstTimer > 0.0f) {
+			shieldBurstTimer = Math.max(0.0f, shieldBurstTimer - dt);
+		}
+		if (shieldImpactTimer > 0.0f) {
+			shieldImpactTimer = Math.max(0.0f, shieldImpactTimer - dt);
+		}
 	}
 
 	/** Advances combat, dodge, roll, jump-slam, and charge clocks at full 60+ FPS render rate. */
@@ -343,6 +386,9 @@ public final class ZeldaCombatSystem {
 		}
 		if (comboResetTimer > 0.0f) {
 			comboResetTimer = Math.max(0.0f, comboResetTimer - dt);
+		}
+		if (!shieldHeld && !ZeldaTargetingSystem.isFocusActive() && shieldReadyTimer > 0.0f) {
+			shieldReadyTimer = Math.max(0.0f, shieldReadyTimer - dt);
 		}
 		if (!ZeldaTargetingSystem.isTargeting() && swordDrawnTimer > 0.0f && currentMove == SwordMove.NONE) {
 			swordDrawnTimer = Math.max(0.0f, swordDrawnTimer - dt);
@@ -493,6 +539,131 @@ public final class ZeldaCombatSystem {
 		return kickDown + impactShakeStrength * vertMult * u * u * Mth.cos(t * 108.0f + 0.5f);
 	}
 
+	/** True while Link is actively holding his equipped shield in front of him in OoT Guard stance. */
+	public static boolean isGuarding() {
+		Minecraft mc = Minecraft.getInstance();
+		LocalPlayer player = mc.player;
+		if (player == null || !OcarinaGameTypeClient.isZelda() || !ZeldaEquipment.hasEquippedShield()) {
+			return false;
+		}
+		if (ZeldaChestCutscene.isActive() || ZeldaLedgeSystem.isActive() || mc.screen != null) {
+			return false;
+		}
+		if (isSwinging() || isDodging() || isChargingSpin()) {
+			return false;
+		}
+		if (player.isSwimming() || player.isFallFlying() || player.isSleeping() || player.isPassenger() || player.onClimbable()) {
+			return false;
+		}
+		return shieldHeld;
+	}
+
+	/** Classic OoT Hylian Shield turtle-crouch when holding Guard while standing still on ground. */
+	public static boolean isShieldCrouchTurtling() {
+		return isGuarding() && shieldCrouchTurtling && ZeldaEquipment.isHylianShieldEquipped();
+	}
+
+	/** In OoT, Link keeps his shield on his left arm while guarding or in sword-drawn combat stance, and on his back when sheathed. */
+	public static boolean isShieldVisibleInHand() {
+		return OcarinaGameTypeClient.isZelda() && ZeldaEquipment.hasEquippedShield() && !ZeldaLedgeSystem.isActive()
+				&& (isGuarding() || isSwordDrawn() || ZeldaTargetingSystem.isFocusActive() || shieldReadyTimer > 0.0f);
+	}
+
+	/** Called per tick from ZeldaLockdown to update OoT shield guard state and sync to the server. */
+	public static void updateShieldInput(Minecraft mc, boolean heldNow) {
+		LocalPlayer player = mc.player;
+		boolean valid = player != null && EngineState.isActive() && !ZeldaChestCutscene.isActive()
+				&& !ZeldaLedgeSystem.isActive() && mc.screen == null && ZeldaEquipment.hasEquippedShield();
+		boolean prevGuarding = shieldHeld;
+		shieldHeld = valid && heldNow;
+		if (shieldHeld && !prevGuarding && !isSwinging() && !isDodging()) {
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ARMOR_EQUIP_IRON.value(), 1.15f));
+		}
+		boolean moving = player != null && isMovementHeld(mc);
+		shieldCrouchTurtling = shieldHeld && player != null && player.onGround() && !moving;
+
+		if (isGuarding() || (ZeldaEquipment.hasEquippedShield() && ZeldaTargetingSystem.isFocusActive())) {
+			shieldReadyTimer = 3.5f;
+		}
+		boolean guardingNow = isGuarding();
+		boolean crouchingNow = isShieldCrouchTurtling();
+		String shieldIdNow = ZeldaEquipment.equippedShieldId();
+		if (player != null && mc.getConnection() != null
+				&& (guardingNow != lastSentGuarding || crouchingNow != lastSentCrouching || !shieldIdNow.equals(lastSentShieldId))) {
+			lastSentGuarding = guardingNow;
+			lastSentCrouching = crouchingNow;
+			lastSentShieldId = shieldIdNow;
+			ClientPlayNetworking.send(new ZeldaShieldStatePayload(guardingNow, shieldIdNow, crouchingNow));
+		}
+	}
+
+	/** Called client-side when the server confirms a shield block, Deku Shield burn, or Mirror reflection. */
+	public static void onShieldBlockedClient(Vec3 pos, boolean burnedDeku, boolean reflectedMirror) {
+		Minecraft mc = Minecraft.getInstance();
+		hitstopDuration = 0.055f;
+		hitstopTimer = hitstopDuration;
+		hitstopStartNanos = System.nanoTime();
+		shieldBurstDuration = reflectedMirror ? 0.22f : 0.14f;
+		shieldBurstTimer = shieldBurstDuration;
+		shieldImpactTimer = SHIELD_IMPACT_DURATION;
+		lastShieldBurstPos = pos;
+		lastShieldReflect = reflectedMirror;
+		impactShakeDuration = 0.095f;
+		impactShakeTimer = impactShakeDuration;
+		impactShakeStrength = reflectedMirror ? 1.65f : 1.05f;
+		impactZoomPush = 0.12f;
+
+		if (burnedDeku) {
+			ZeldaEquipment.burnDekuShield();
+			shieldHeld = false;
+			shieldCrouchTurtling = false;
+			lastSentGuarding = false;
+			lastSentCrouching = false;
+			lastSentShieldId = "";
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.FIRE_EXTINGUISH, 0.92f));
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ITEM_BREAK, 0.85f));
+		} else if (reflectedMirror) {
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.AMETHYST_BLOCK_RESONATE, 1.35f));
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.SHIELD_BLOCK, 1.45f));
+		} else {
+			float pitch = ZeldaEquipment.isDekuShieldEquipped() ? 0.78f : 1.12f;
+			mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.SHIELD_BLOCK, pitch));
+		}
+	}
+
+	/** Progress (0..1) of the shield block arm/model recoil, or -1 if inactive. */
+	public static float getShieldImpactProgress() {
+		if (shieldImpactTimer <= 0.0f) {
+			return -1.0f;
+		}
+		return Mth.clamp(1.0f - (shieldImpactTimer / SHIELD_IMPACT_DURATION), 0.0f, 1.0f);
+	}
+
+	/** Bell-curve (0..1..0) arm recoil impulse on shield impact. */
+	public static float getShieldImpactRecoil() {
+		float p = getShieldImpactProgress();
+		if (p < 0.0f) {
+			return 0.0f;
+		}
+		return Mth.sin(p * Mth.PI) * (1.0f - 0.35f * p);
+	}
+
+	/** Progress (0..1) of the 3D shield block spark burst, or -1 if inactive. */
+	public static float getShieldBurstProgress() {
+		if (shieldBurstTimer <= 0.0f || shieldBurstDuration <= 1.0e-4f) {
+			return -1.0f;
+		}
+		return Mth.clamp(1.0f - (shieldBurstTimer / shieldBurstDuration), 0.0f, 1.0f);
+	}
+
+	public static Vec3 getLastShieldBurstPos() {
+		return lastShieldBurstPos;
+	}
+
+	public static boolean isLastShieldReflect() {
+		return lastShieldReflect;
+	}
+
 	/** True when the equipped Wooden Sword should be rendered in Link's hand rather than on his back. */
 	public static boolean isSwordDrawn() {
 		if (!OcarinaGameTypeClient.isZelda() || !ZeldaEquipment.hasEquippedSword() || ZeldaLedgeSystem.isActive()) {
@@ -537,6 +708,10 @@ public final class ZeldaCombatSystem {
 				mc.getSoundManager().play(SimpleSoundInstance.forUI(SoundEvents.ARMOR_EQUIP_IRON.value(), 0.85f));
 				acted = true;
 			}
+		}
+		if (shieldReadyTimer > 0.0f && !isGuarding()) {
+			shieldReadyTimer = 0.0f;
+			acted = true;
 		}
 		return acted;
 	}
@@ -639,6 +814,56 @@ public final class ZeldaCombatSystem {
 		}
 
 		executeRoll(mc, player, rollKind, rollYaw);
+		return true;
+	}
+
+	/** Records whether Link is advancing in the air just before landing so drops <= 20 blocks can auto-roll. */
+	public static void recordAirborneAdvanceInput(LocalPlayer player, boolean advancingNow, float advanceYawDeg) {
+		if (player == null || !EngineState.isActive() || ZeldaLedgeSystem.isActive()
+				|| player.isInWater() || player.isInLava() || player.isFallFlying()
+				|| player.isPassenger() || player.onClimbable() || player.getAbilities().flying) {
+			airAdvanceGraceTicks = 0;
+			return;
+		}
+		if (player.onGround()) {
+			airAdvanceGraceTicks = 0;
+			return;
+		}
+		if (advancingNow) {
+			airAdvanceGraceTicks = 3;
+			airAdvanceYawDeg = advanceYawDeg;
+		} else if (airAdvanceGraceTicks > 0) {
+			airAdvanceGraceTicks--;
+		}
+	}
+
+	/**
+	 * Ocarina of Time landing roll: on falls between 4 and 20 blocks, advancing just before
+	 * touching the ground triggers a forward roll and negates all fall damage.
+	 */
+	public static boolean tryTriggerLandingRoll(Minecraft mc, LocalPlayer player, float fallDistance) {
+		if (player == null || !EngineState.isActive() || ZeldaChestCutscene.isActive()
+				|| ZeldaLedgeSystem.isActive() || mc.screen != null) {
+			return false;
+		}
+		if (fallDistance < MIN_LANDING_ROLL_FALL_BLOCKS || fallDistance > MAX_LANDING_ROLL_FALL_BLOCKS) {
+			return false;
+		}
+		if (airAdvanceGraceTicks <= 0 || isRolling() || isChargingSpin()
+				|| currentMove == SwordMove.JUMP_ATTACK || currentMove == SwordMove.SPIN_ATTACK) {
+			return false;
+		}
+		if (player.isInWater() || player.isInLava() || !player.level().getFluidState(player.blockPosition()).isEmpty()
+				|| player.isFallFlying() || player.isPassenger() || player.onClimbable() || player.getAbilities().flying) {
+			return false;
+		}
+		airAdvanceGraceTicks = 0;
+		ZeldaAnimationEngine.clearLandingImpact();
+		executeRoll(mc, player, DodgeMove.ROLL, airAdvanceYawDeg);
+		player.resetFallDistance();
+		if (mc.getConnection() != null) {
+			ClientPlayNetworking.send(new ZeldaLandingRollPayload(fallDistance));
+		}
 		return true;
 	}
 

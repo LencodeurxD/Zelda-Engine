@@ -110,6 +110,10 @@ public final class Gamepad {
 		return isNintendoLayout ? "A" : "B";
 	}
 
+	public static String labelShield() {
+		return isNintendoLayout ? "L" : "LB";
+	}
+
 	private static boolean detectNintendo(int joystickId) {
 		String name = GLFW.glfwGetGamepadName(joystickId);
 		if (name == null || name.isEmpty()) {

@@ -2,7 +2,10 @@
 	"required": true,
 	"package": "com.ocarinaengine.mixin",
 	"compatibilityLevel": "JAVA_21",
-	"mixins": [],
+	"mixins": [
+		"ServerPlayerFallMixin",
+		"ServerPlayerShieldMixin"
+	],
 	"injectors": {
 		"defaultRequire": 1
 	},

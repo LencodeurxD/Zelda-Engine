@@ -5,6 +5,8 @@ import com.ocarinaengine.client.camera.EngineState;
 import com.ocarinaengine.client.chest.ZeldaChestCutscene;
 import com.ocarinaengine.client.combat.ZeldaCombatSystem;
 import com.ocarinaengine.client.combat.ZeldaTargetingSystem;
+import com.ocarinaengine.client.equipment.ZeldaEquipment;
+import com.ocarinaengine.client.input.ZeldaKeys;
 import com.ocarinaengine.client.input.Gamepad;
 import com.ocarinaengine.client.movement.ZeldaLedgeSystem;
 import net.minecraft.client.Minecraft;
@@ -76,6 +78,21 @@ public abstract class KeyboardInputMixin extends Input {
 			return;
 		}
 
+		boolean shieldSuppressSneak = ZeldaEquipment.hasEquippedShield()
+				&& (ZeldaCombatSystem.isGuarding() || (inGame && ZeldaKeys.isShieldHeld()));
+		if (shieldSuppressSneak) {
+			// Undo vanilla slowDown(0.3f) sneak penalty applied before TAIL so OoT shield-walk & crouch-turtle work cleanly.
+			this.shiftKeyDown = false;
+			float rawFwd = (this.up == this.down) ? 0.0f : (this.up ? 1.0f : -1.0f);
+			float rawLeft = (this.left == this.right) ? 0.0f : (this.left ? 1.0f : -1.0f);
+			if (rawFwd != 0.0f && rawLeft != 0.0f) {
+				rawFwd *= 0.70710677f;
+				rawLeft *= 0.70710677f;
+			}
+			this.forwardImpulse = rawFwd;
+			this.leftImpulse = rawLeft;
+		}
+
 		// 1) Desired input: right (sx) and forward (sy), between -1 and 1.
 		float sx;
 		float sy;
@@ -100,11 +117,31 @@ public abstract class KeyboardInputMixin extends Input {
 			return;
 		}
 
+		if (ZeldaCombatSystem.isGuarding()) {
+			this.shiftKeyDown = false;
+		}
+		float shieldWalkScale = ZeldaCombatSystem.isShieldCrouchTurtling()
+				? 0.0f
+				: (ZeldaCombatSystem.isGuarding() ? 0.68f : 1.0f);
+
 		float magnitude = Math.min(1.0f, (float) Math.sqrt(sx * sx + sy * sy));
 		if (!usingStick && inGame && magnitude > 0.01f
 				&& GLFW.glfwGetKey(mc.getWindow().getWindow(), GLFW.GLFW_KEY_LEFT_ALT) == GLFW.GLFW_PRESS) {
 			magnitude *= 0.36f;
 		}
+		magnitude *= shieldWalkScale;
+
+		float rawMag = (float) Math.sqrt(sx * sx + sy * sy);
+		boolean advancingNow = inGame && ((!ZeldaTargetingSystem.isFocusActive() && rawMag > 0.30f && sy >= -0.15f) || sy > 0.25f);
+		float advanceYaw = player.getYRot();
+		if (sx * sx + sy * sy > 0.02f) {
+			float rawStickAngle = (float) Math.toDegrees(Math.atan2(sx, sy));
+			float baseAdvanceYaw = ZeldaTargetingSystem.isFocusActive()
+					? ZeldaTargetingSystem.getFocusYawDeg(player, 1.0f)
+					: EngineState.camYaw;
+			advanceYaw = Mth.wrapDegrees(baseAdvanceYaw + rawStickAngle);
+		}
+		ZeldaCombatSystem.recordAirborneAdvanceInput(player, advancingNow, advanceYaw);
 
 		// Lock body rotation to sword swing direction during grounded swings, while buffering dodge cancels.
 		if (ZeldaCombatSystem.isSwinging() && player.onGround()) {
@@ -180,10 +217,10 @@ public abstract class KeyboardInputMixin extends Input {
 
 			float stickAngle = (float) Math.toDegrees(Math.atan2(sx, sy));
 			float moveWorldYaw = lockYaw + stickAngle;
-			float spinScale = ZeldaCombatSystem.isChargingSpin() ? 0.36f : 1.0f;
+			float spinScale = (ZeldaCombatSystem.isChargingSpin() ? 0.36f : 1.0f) * shieldWalkScale;
 			this.forwardImpulse = sy * spinScale;
 			this.leftImpulse = -sx * spinScale;
-			ZeldaAnimationEngine.recordInput(magnitude * spinScale, 0.0f, moveWorldYaw);
+			ZeldaAnimationEngine.recordInput(magnitude * (ZeldaCombatSystem.isChargingSpin() ? 0.36f : 1.0f) * shieldWalkScale, 0.0f, moveWorldYaw);
 			return;
 		}
 

@@ -5,8 +5,10 @@ import com.ocarinaengine.client.equipment.ZeldaEquipment;
 import com.ocarinaengine.client.equipment.ZeldaItem;
 import com.ocarinaengine.client.hud.ZeldaHud;
 import com.ocarinaengine.client.input.Gamepad;
+import com.ocarinaengine.client.inventory.ZeldaInventoryClient;
 import com.ocarinaengine.client.items.QuickItem;
 import com.ocarinaengine.client.items.ZeldaQuickItems;
+import com.ocarinaengine.client.render.ZeldaShieldRenderer;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.Minecraft;
@@ -291,6 +293,9 @@ public final class ZeldaEquipmentScreen extends Screen {
 	@Override
 	public void removed() {
 		applyGlfwCursorMode(false);
+		if (ZeldaInventoryClient.isSynced()) {
+			ZeldaInventoryClient.sendSnapshot();
+		}
 		super.removed();
 	}
 
@@ -919,12 +924,21 @@ public final class ZeldaEquipmentScreen extends Screen {
 		}
 
 		if (c.item != null && alpha > 0.08f) {
-			float k = (c.hex ? drawSize * 1.15f : drawSize * 0.6f) * pageScale / 16.0f;
-			g.pose().pushPose();
-			g.pose().translate(cx - 8.0f * k, cy - 8.0f * k, 0.0f);
-			g.pose().scale(k, k, 1.0f);
-			g.renderItem(c.item.stack(), 0, 0);
-			g.pose().popPose();
+			if (c.item.slot() == EquipSlot.SHIELD) {
+				int iconSize = Math.max(10, Math.round(drawSize * 0.68f * pageScale));
+				int ix = cx - iconSize / 2;
+				int iy = cy - iconSize / 2;
+				g.setColor(1.0f, 1.0f, 1.0f, alpha);
+				g.blit(ZeldaShieldRenderer.textureFor(c.item.id()), ix, iy, iconSize, iconSize, 0.0f, 0.0f, 16, 16, 64, 32);
+				g.setColor(1.0f, 1.0f, 1.0f, 1.0f);
+			} else {
+				float k = (c.hex ? drawSize * 1.15f : drawSize * 0.6f) * pageScale / 16.0f;
+				g.pose().pushPose();
+				g.pose().translate(cx - 8.0f * k, cy - 8.0f * k, 0.0f);
+				g.pose().scale(k, k, 1.0f);
+				g.renderItem(c.item.stack(), 0, 0);
+				g.pose().popPose();
+			}
 		}
 	}
 

@@ -28,6 +28,15 @@ public abstract class LivingEntityMixin {
 	@Unique
 	private float ocarina$savedFrictionFactor = 0.546f;
 
+	@Unique
+	private boolean ocarina$wasOnGroundBeforeTravel = true;
+
+	@Unique
+	private float ocarina$preTravelFallDistance = 0.0f;
+
+	@Unique
+	private double ocarina$preTravelY = 0.0D;
+
 	@Inject(method = "travel(Lnet/minecraft/world/phys/Vec3;)V", at = @At("HEAD"), cancellable = true)
 	private void ocarina$handleLedgeTravel(Vec3 travelVector, CallbackInfo ci) {
 		Minecraft mc = Minecraft.getInstance();
@@ -35,8 +44,19 @@ public abstract class LivingEntityMixin {
 			return;
 		}
 		LocalPlayer player = mc.player;
+		this.ocarina$wasOnGroundBeforeTravel = player.onGround();
+		this.ocarina$preTravelY = player.getY();
+		if (!player.onGround() && !player.isInWater() && !player.isInLava()
+				&& !player.onClimbable() && !player.getAbilities().flying
+				&& !player.isPassenger() && !ZeldaLedgeSystem.isActive()) {
+			this.ocarina$preTravelFallDistance = player.fallDistance;
+		} else {
+			this.ocarina$preTravelFallDistance = 0.0f;
+		}
 		if (ZeldaLedgeSystem.handleTravel(player)) {
 			this.ocarina$rootMotionApplied = false;
+			this.ocarina$preTravelFallDistance = 0.0f;
+			this.ocarina$wasOnGroundBeforeTravel = false;
 			ZeldaAnimationEngine.syncRootMotionFromPhysics(player);
 			ci.cancel();
 		}
@@ -74,6 +94,14 @@ public abstract class LivingEntityMixin {
 
 	@Inject(method = "travel(Lnet/minecraft/world/phys/Vec3;)V", at = @At("TAIL"))
 	private void ocarina$finishRootMotion(Vec3 travelVector, CallbackInfo ci) {
+		Minecraft mc = Minecraft.getInstance();
+		if ((Object) this == mc.player && mc.player != null) {
+			LocalPlayer player = mc.player;
+			if (!this.ocarina$wasOnGroundBeforeTravel && player.onGround() && !ZeldaLedgeSystem.isActive()) {
+				float totalFall = this.ocarina$preTravelFallDistance + (float) Math.max(0.0D, this.ocarina$preTravelY - player.getY());
+				ZeldaCombatSystem.tryTriggerLandingRoll(mc, player, totalFall);
+			}
+		}
 		if (!this.ocarina$rootMotionApplied) {
 			return;
 		}

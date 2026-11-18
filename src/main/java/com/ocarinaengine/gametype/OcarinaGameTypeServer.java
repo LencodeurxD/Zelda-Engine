@@ -72,6 +72,9 @@ public final class OcarinaGameTypeServer {
 		MinecraftServer server = target.server;
 		OcarinaWorldData data = OcarinaWorldData.get(server);
 		data.setForPlayer(target.getUUID(), type);
+		if (server.isSingleplayer() && !server.isPublished()) {
+			data.setWorldDefault(type);
+		}
 		applyBodyAttributes(target, type, false);
 		ServerPlayNetworking.send(target, new SyncGameTypePayload(type.ordinal()));
 	}
