@@ -1,0 +1,14 @@
+{
+	"key.categories.ocarina_engine": "Ocarina Engine",
+	"key.ocarina_engine.quick_menu": "Menu rapide d'objets (R)",
+	"key.ocarina_engine.use_quick_item": "Utiliser l'objet rapide (ZR)",
+	"key.ocarina_engine.target_lock": "Visée Z-Target / Bouclier (ZL)",
+	"ocarina_engine.create_world.gametype": "Type de jeu",
+	"ocarina_engine.gametype.zelda": "Zelda",
+	"ocarina_engine.gametype.minecraft": "Minecraft",
+	"ocarina_engine.create_world.gametype.info.zelda": "Mode Zelda complet d'Ocarina Engine : caméra libre, visée Z-Target, combat à l'épée, cœurs, menus et escalade de rebords.",
+	"ocarina_engine.create_world.gametype.info.minecraft": "Jeu Minecraft de base (vanilla) sans les mécaniques Zelda d'Ocarina Engine.",
+	"ocarina_engine.command.gametype.success.single": "Type de jeu défini sur %2$s pour %1$s",
+	"ocarina_engine.command.gametype.success.multiple": "Type de jeu défini sur %2$s pour %1$s joueurs",
+	"ocarina_engine.command.gametype.changed_self": "Votre type de jeu est maintenant : %s"
+}
